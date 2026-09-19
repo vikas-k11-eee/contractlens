@@ -295,6 +295,7 @@ function Sidebar({
   setCollapsed,
   onUpload,
   user,
+  mobile = false,
 }: {
   view: View;
   setView: (view: View) => void;
@@ -302,6 +303,7 @@ function Sidebar({
   setCollapsed: (value: boolean) => void;
   onUpload: () => void;
   user: { name?: string | null; email?: string | null } | null;
+  mobile?: boolean;
 }) {
   const displayName = user?.name?.trim() || "Guest user";
   const workspaceLabel = user?.email
@@ -309,7 +311,7 @@ function Sidebar({
     : "Demo workspace";
   return (
     <aside
-      className={`desktop-sidebar fixed bottom-0 left-0 top-0 z-30 flex w-[248px] flex-col border-r border-white/[.07] bg-[#070709]/85 px-3 py-4 backdrop-blur-xl transition-all duration-200 ${collapsed ? "!w-[76px]" : ""}`}
+      className={`${mobile ? "mobile-drawer-panel !relative !left-auto !top-auto !bottom-auto !z-auto !w-full !max-w-none !border-0" : "desktop-sidebar fixed bottom-0 left-0 top-0 z-30"} flex w-[248px] flex-col border-r border-white/[.07] bg-[#070709]/95 px-3 py-4 backdrop-blur-xl transition-all duration-200 ${collapsed ? "!w-[76px]" : ""}`}
     >
       <div className="flex items-center gap-3 px-2.5">
         <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#7b86f5] to-[#414a9f] shadow-[0_8px_24px_rgba(94,106,210,.35)]">
@@ -2439,11 +2441,11 @@ export default function Home() {
           />
           {mobileMenu && (
             <div
-              className="fixed inset-0 z-40 bg-black/60 md:hidden"
+              className="fixed inset-0 z-40 flex justify-start bg-black/60 md:hidden"
               onClick={() => setMobileMenu(false)}
             >
               <div
-                className="h-full w-[280px] border-r border-white/[.08] bg-[#09090c] p-3"
+                className="h-full w-full max-w-[280px] shrink-0 overflow-y-auto border-r border-white/[.08] bg-[#09090c]"
                 onClick={event => event.stopPropagation()}
               >
                 <Sidebar
@@ -2460,6 +2462,7 @@ export default function Home() {
                     setMobileMenu(false);
                   }}
                   user={user}
+                  mobile
                 />
               </div>
             </div>
