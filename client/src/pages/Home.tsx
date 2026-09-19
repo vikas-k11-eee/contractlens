@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -293,13 +294,19 @@ function Sidebar({
   collapsed,
   setCollapsed,
   onUpload,
+  user,
 }: {
   view: View;
   setView: (view: View) => void;
   collapsed: boolean;
   setCollapsed: (value: boolean) => void;
   onUpload: () => void;
+  user: { name?: string | null; email?: string | null } | null;
 }) {
+  const displayName = user?.name?.trim() || "Guest user";
+  const workspaceLabel = user?.email
+    ? `${user.email.split("@")[1] ?? "personal"} workspace`
+    : "Demo workspace";
   return (
     <aside
       className={`desktop-sidebar fixed bottom-0 left-0 top-0 z-30 flex w-[248px] flex-col border-r border-white/[.07] bg-[#070709]/85 px-3 py-4 backdrop-blur-xl transition-all duration-200 ${collapsed ? "!w-[76px]" : ""}`}
@@ -371,14 +378,14 @@ function Sidebar({
         className={`mt-5 flex items-center gap-3 rounded-xl border border-white/[.07] bg-white/[.025] p-2.5 ${collapsed ? "justify-center" : ""}`}
       >
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#232642] text-[11px] font-bold text-[#c8ccff]">
-          MC
+          {initials(displayName)}
         </div>
         <div className="workspace-detail min-w-0">
           <div className="truncate text-xs font-medium text-[#e5e6eb]">
-            Maya Chen
+            {displayName}
           </div>
           <div className="truncate text-[10px] text-[#666c77]">
-            Northstar workspace
+            {workspaceLabel}
           </div>
         </div>
         <ChevronDown
@@ -394,10 +401,12 @@ function DashboardView({
   dashboard,
   onOpenContract,
   setView,
+  userName,
 }: {
   dashboard: DashboardData;
   onOpenContract: (id: string) => void;
   setView: (view: View) => void;
+  userName: string;
 }) {
   return (
     <div className="space-y-6">
@@ -408,7 +417,8 @@ function DashboardView({
             All systems operational
           </div>
           <h1 className="font-display text-[30px] font-semibold leading-tight tracking-[-.045em] text-[#f5f5f7] sm:text-[36px]">
-            Good morning, Maya<span className="text-[#737cf0]">.</span>
+            Good morning, {userName}
+            <span className="text-[#737cf0]">.</span>
           </h1>
           <p className="mt-2 max-w-[580px] text-sm leading-6 text-[#858b98]">
             Here’s the signal across your contract portfolio. Three items need
@@ -2334,6 +2344,8 @@ export default function Home() {
     null
   );
   const [uploadOpen, setUploadOpen] = useState(false);
+  const { user } = useAuth();
+  const userName = user?.name?.trim().split(/\s+/)[0] || "there";
   const listInput = useMemo(() => ({ search, status: "all" }), [search]);
   const { data: dashboard } = trpc.dashboard.overview.useQuery();
   const { data: contracts = [] } = trpc.contracts.list.useQuery(listInput);
@@ -2366,6 +2378,7 @@ export default function Home() {
           dashboard={dashboard}
           onOpenContract={openContract}
           setView={setView}
+          userName={userName}
         />
       );
     if (view === "contracts")
@@ -2413,6 +2426,7 @@ export default function Home() {
           collapsed={collapsed}
           setCollapsed={setCollapsed}
           onUpload={() => setUploadOpen(true)}
+          user={user}
         />
         <main
           className="workspace-main ml-[248px] min-h-screen transition-all duration-200"
@@ -2445,6 +2459,7 @@ export default function Home() {
                     setUploadOpen(true);
                     setMobileMenu(false);
                   }}
+                  user={user}
                 />
               </div>
             </div>
