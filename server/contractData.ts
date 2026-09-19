@@ -284,6 +284,30 @@ const cloudContract: Contract = {
   ],
 };
 
+function cloneContractForDemo(
+  id: string,
+  overrides: Partial<Contract> = {}
+): Contract {
+  return {
+    ...cloudContract,
+    ...overrides,
+    id,
+    clauses: cloudContract.clauses.map((clause, index) => ({
+      ...clause,
+      id: `${id}-clause-${index + 1}`,
+    })),
+    obligations: cloudContract.obligations.map((obligation, index) => ({
+      ...obligation,
+      id: `${id}-obligation-${index + 1}`,
+      contractId: id,
+    })),
+    reviewFlags: cloudContract.reviewFlags.map((flag, index) => ({
+      ...flag,
+      id: `${id}-review-${index + 1}`,
+    })),
+  };
+}
+
 const sampleContracts: Contract[] = [
   cloudContract,
   {
@@ -391,9 +415,7 @@ const sampleContracts: Contract[] = [
       },
     ],
   },
-  {
-    ...cloudContract,
-    id: "it-003",
+  cloneContractForDemo("it-003", {
     name: "IT Maintenance Contract",
     type: "Support agreement",
     status: "expiring",
@@ -407,10 +429,8 @@ const sampleContracts: Contract[] = [
     document: "IT_Maintenance_Contract.pdf",
     summary:
       "Managed infrastructure support with 24/7 incident response and a renewal decision required this month.",
-  },
-  {
-    ...cloudContract,
-    id: "lgs-004",
+  }),
+  cloneContractForDemo("lgs-004", {
     name: "Logistics Services Agreement",
     type: "Logistics services",
     status: "active",
@@ -424,10 +444,8 @@ const sampleContracts: Contract[] = [
     document: "Logistics_Services_Agreement.docx",
     summary:
       "Regional logistics partner agreement with delivery SLAs and monthly reconciliation.",
-  },
-  {
-    ...cloudContract,
-    id: "ent-005",
+  }),
+  cloneContractForDemo("ent-005", {
     name: "Enterprise SaaS Agreement",
     type: "SaaS agreement",
     status: "archived",
@@ -441,7 +459,7 @@ const sampleContracts: Contract[] = [
     document: "Enterprise_SaaS_Agreement.pdf",
     summary:
       "Archived enterprise SaaS agreement retained for historical reference and audit support.",
-  },
+  }),
 ];
 
 export const demoContracts = sampleContracts;
