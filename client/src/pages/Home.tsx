@@ -311,7 +311,7 @@ function Sidebar({
     : "Demo workspace";
   return (
     <aside
-      className={`${mobile ? "mobile-drawer-panel !relative !left-auto !top-auto !bottom-auto !z-auto !w-full !max-w-none !border-0" : "desktop-sidebar fixed bottom-0 left-0 top-0 z-30"} flex w-[248px] flex-col border-r border-white/[.07] bg-[#070709]/95 px-3 py-4 backdrop-blur-xl transition-all duration-200 ${collapsed ? "!w-[76px]" : ""}`}
+      className={`${mobile ? "mobile-drawer-panel !relative !left-auto !top-auto !bottom-auto !z-auto !w-full !max-w-none !border-0" : `desktop-sidebar fixed bottom-0 left-0 top-0 z-30 ${collapsed ? "sidebar-collapsed" : ""}`} flex w-[248px] flex-col border-r border-white/[.07] bg-[#070709]/95 px-3 py-4 backdrop-blur-xl transition-all duration-200 ${collapsed ? "!w-[76px]" : ""}`}
     >
       <div className="flex items-center gap-3 px-2.5">
         <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#7b86f5] to-[#414a9f] shadow-[0_8px_24px_rgba(94,106,210,.35)]">

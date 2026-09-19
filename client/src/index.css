@@ -298,6 +298,25 @@ select:focus-visible {
   background: linear-gradient(90deg, #5e6ad2, #7c87f4);
 }
 
+.desktop-sidebar.sidebar-collapsed .sidebar-label,
+.desktop-sidebar.sidebar-collapsed .workspace-detail,
+.desktop-sidebar.sidebar-collapsed .nav-section-label {
+  display: none;
+}
+
+.desktop-sidebar.sidebar-collapsed .nav-item {
+  justify-content: center;
+}
+
+.desktop-sidebar.sidebar-collapsed > div:first-child {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.desktop-sidebar.sidebar-collapsed > div:first-child > button {
+  margin-left: 0;
+}
+
 @media (max-width: 1024px) {
   .desktop-sidebar {
     width: 76px !important;
