@@ -1,28 +1,153 @@
+import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+import {
+  answerQuestion,
+  compareContracts,
+  demoAlerts,
+  demoContracts,
+  getAllObligations,
+  getContract,
+  getDashboard,
+} from "./contractData";
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return {
-        success: true,
-      } as const;
+      return { success: true } as const;
     }),
   }),
-
-  // TODO: add feature routers here, e.g.
-  // todo: router({
-  //   list: protectedProcedure.query(({ ctx }) =>
-  //     db.getUserTodos(ctx.user.id)
-  //   ),
-  // }),
+  dashboard: router({
+    overview: publicProcedure.query(() => getDashboard()),
+  }),
+  contracts: router({
+    list: publicProcedure
+      .input(
+        z
+          .object({
+            search: z.string().optional(),
+            status: z.string().optional(),
+          })
+          .optional()
+      )
+      .query(({ input }) => {
+        const search = input?.search?.toLowerCase().trim() ?? "";
+        const status = input?.status ?? "all";
+        return demoContracts.filter(contract => {
+          const matchesSearch =
+            !search ||
+            [
+              contract.name,
+              contract.type,
+              contract.owner,
+              ...contract.parties.map(party => party.name),
+            ]
+              .join(" ")
+              .toLowerCase()
+              .includes(search);
+          const matchesStatus = status === "all" || contract.status === status;
+          return matchesSearch && matchesStatus;
+        });
+      }),
+    get: publicProcedure
+      .input(z.object({ id: z.string() }))
+      .query(({ input }) => getContract(input.id)),
+    obligations: publicProcedure
+      .input(z.object({ id: z.string() }))
+      .query(({ input }) => getContract(input.id).obligations),
+    clauses: publicProcedure
+      .input(z.object({ id: z.string() }))
+      .query(({ input }) => getContract(input.id).clauses),
+    timeline: publicProcedure
+      .input(z.object({ id: z.string() }))
+      .query(({ input }) => {
+        const contract = getContract(input.id);
+        return [
+          {
+            id: "start",
+            label: "Contract start",
+            date: contract.effectiveDate,
+            status: "completed",
+            type: "milestone",
+          },
+          ...contract.obligations.map(obligation => ({
+            id: obligation.id,
+            label: obligation.obligation,
+            date: obligation.dueDate,
+            status: obligation.status,
+            type: "obligation",
+          })),
+          {
+            id: "renewal",
+            label: "Renewal / expiration",
+            date: contract.expirationDate,
+            status: contract.status === "expiring" ? "due_soon" : "upcoming",
+            type: "milestone",
+          },
+        ];
+      }),
+    summary: publicProcedure
+      .input(z.object({ id: z.string() }))
+      .query(({ input }) => {
+        const contract = getContract(input.id);
+        return {
+          ...contract,
+          generatedBy: "ContractLens demo extraction layer",
+          disclaimer:
+            "AI-assisted summary. Verify against the source document before acting.",
+        };
+      }),
+    query: publicProcedure
+      .input(z.object({ id: z.string(), question: z.string().min(3) }))
+      .mutation(({ input }) => ({
+        ...answerQuestion(input.id, input.question),
+        mode: "demo-evidence" as const,
+      })),
+    compare: publicProcedure
+      .input(z.object({ leftId: z.string(), rightId: z.string() }))
+      .query(({ input }) => compareContracts(input.leftId, input.rightId)),
+    upload: publicProcedure
+      .input(
+        z.object({
+          fileName: z.string().min(1),
+          mimeType: z.enum([
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          ]),
+          fileSize: z.number().max(25_000_000),
+        })
+      )
+      .mutation(({ input }) => ({
+        status: "processing" as const,
+        mode: "demo" as const,
+        fileName: input.fileName,
+        message:
+          "Upload received. Connect the document processing integration to extract live clauses and evidence.",
+      })),
+  }),
+  obligations: router({
+    list: publicProcedure.query(() =>
+      getAllObligations().map(obligation => ({
+        ...obligation,
+        contractName: getContract(obligation.contractId).name,
+      }))
+    ),
+  }),
+  alerts: router({
+    list: publicProcedure.query(() => demoAlerts),
+    acknowledge: publicProcedure
+      .input(z.object({ id: z.string() }))
+      .mutation(({ input }) => ({
+        id: input.id,
+        status: "acknowledged" as const,
+      })),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
