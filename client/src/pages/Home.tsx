@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -77,7 +78,8 @@ type View =
   | "timeline"
   | "alerts"
   | "compare"
-  | "analytics";
+  | "analytics"
+  | "settings";
 
 const formatDate = (value: string) =>
   new Date(`${value}T12:00:00`).toLocaleDateString("en-US", {
@@ -241,6 +243,7 @@ function Topbar({
     alerts: "Alerts",
     compare: "Compare versions",
     analytics: "Analytics",
+    settings: "Workspace settings",
   };
   return (
     <header className="sticky top-0 z-20 flex h-[76px] items-center justify-between border-b border-white/[.07] bg-[#050506]/75 px-5 backdrop-blur-xl md:px-8">
@@ -363,10 +366,8 @@ function Sidebar({
       <div className="space-y-1 border-t border-white/[.07] pt-4">
         <NavButton
           item={{ id: "settings", label: "Settings", icon: Settings2 }}
-          active={false}
-          onClick={() =>
-            toast("Settings are coming next in the workspace build.")
-          }
+          active={view === "settings"}
+          onClick={() => setView("settings")}
         />
         <NavButton
           item={{ id: "help", label: "Help center", icon: LifeBuoy }}
@@ -2337,6 +2338,266 @@ function UploadDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
+function SettingsView() {
+  const { user, logout } = useAuth();
+  const utils = trpc.useUtils();
+  const { data: account, isLoading: accountLoading } =
+    trpc.auth.account.useQuery();
+  const { data: settings, isLoading: settingsLoading } =
+    trpc.settings.get.useQuery();
+  const [name, setName] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const profileMutation = trpc.auth.updateProfile.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.auth.me.invalidate(),
+        utils.auth.account.invalidate(),
+      ]);
+      toast.success("Profile updated");
+      setSavingProfile(false);
+    },
+    onError: error => {
+      toast.error(error.message);
+      setSavingProfile(false);
+    },
+  });
+  const settingsMutation = trpc.settings.update.useMutation({
+    onSuccess: () => toast.success("Notification preferences saved"),
+    onError: error => toast.error(error.message),
+  });
+
+  useEffect(() => {
+    setName(account?.user?.name ?? user?.name ?? "");
+  }, [account?.user?.name, user?.name]);
+
+  const displayName = account?.user?.name || user?.name || "Guest user";
+  const email = account?.user?.email || user?.email || "Not available";
+  const workspaceName = account?.workspace?.name || "Workspace provisioning…";
+  const profileInitials = initials(displayName);
+  const toggleSetting = (
+    key:
+      | "emailNotifications"
+      | "deadlineAlerts"
+      | "renewalAlerts"
+      | "overdueAlerts"
+      | "weeklySummary"
+  ) => {
+    if (!settings) return;
+    settingsMutation.mutate({ [key]: !settings[key] });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <div className="mb-2 flex items-center gap-2 text-xs text-[#858b98]">
+          <Settings2 size={14} className="text-[#9ea7ff]" /> Account and
+          workspace controls
+        </div>
+        <h1 className="font-display text-2xl font-semibold tracking-[-.04em] text-[#f4f4f6] sm:text-3xl">
+          Settings
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#858b98]">
+          Manage your OAuth-backed account, workspace identity, and alert
+          preferences. Changes are stored on the server.
+        </p>
+      </div>
+      <div className="grid gap-5 xl:grid-cols-[1.05fr_.95fr]">
+        <section className="glass-panel rounded-2xl p-5 sm:p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#232642] text-lg font-bold text-[#c8ccff]">
+              {profileInitials}
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-display text-base font-semibold text-[#f0f1f5]">
+                Account
+              </h2>
+              <p className="mt-1 text-xs text-[#737984]">
+                Authenticated through Manus OAuth
+              </p>
+            </div>
+          </div>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-white/[.07] bg-white/[.025] p-4">
+              <div className="text-[10px] uppercase tracking-[.14em] text-[#666c77]">
+                OAuth identity
+              </div>
+              <div className="mt-2 truncate text-sm text-[#e4e5eb]">
+                {accountLoading ? "Loading…" : email}
+              </div>
+              <div className="mt-1 text-[11px] text-[#737984]">
+                Email is controlled by your provider
+              </div>
+            </div>
+            <div className="rounded-xl border border-white/[.07] bg-white/[.025] p-4">
+              <div className="text-[10px] uppercase tracking-[.14em] text-[#666c77]">
+                Workspace
+              </div>
+              <div className="mt-2 truncate text-sm text-[#e4e5eb]">
+                {workspaceName}
+              </div>
+              <div className="mt-1 text-[11px] text-[#737984]">
+                Private to your authenticated account
+              </div>
+            </div>
+          </div>
+          <div className="mt-6 border-t border-white/[.07] pt-5">
+            <h3 className="text-sm font-medium text-[#e4e5eb]">Profile</h3>
+            <p className="mt-1 text-xs text-[#737984]">
+              Update the display name shown across your workspace.
+            </p>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <input
+                value={name}
+                onChange={event => setName(event.target.value)}
+                className="h-10 flex-1 rounded-lg border border-white/[.09] bg-[#0a0a0d] px-3 text-sm text-[#e4e5eb] outline-none transition focus:border-[#7c87f4]/60"
+                placeholder="Your display name"
+              />
+              <button
+                disabled={savingProfile || !name.trim()}
+                onClick={() => {
+                  setSavingProfile(true);
+                  profileMutation.mutate({ name: name.trim() });
+                }}
+                className="button-primary rounded-lg px-4 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingProfile ? "Saving…" : "Save profile"}
+              </button>
+            </div>
+          </div>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/[.07] pt-5">
+            <div>
+              <div className="text-sm font-medium text-[#e4e5eb]">
+                Session security
+              </div>
+              <div className="mt-1 text-xs text-[#737984]">
+                Sign out this browser session and invalidate the server cookie.
+              </div>
+            </div>
+            <button
+              onClick={() =>
+                logout().catch(error => toast.error(error.message))
+              }
+              className="button-ghost rounded-lg px-3 py-2 text-xs text-[#ff9aa8]"
+            >
+              Sign out
+            </button>
+          </div>
+        </section>
+        <section className="glass-panel rounded-2xl p-5 sm:p-6">
+          <div>
+            <h2 className="font-display text-base font-semibold text-[#f0f1f5]">
+              Notifications
+            </h2>
+            <p className="mt-1 text-xs text-[#737984]">
+              These preferences are persisted per account and control future
+              alert delivery.
+            </p>
+          </div>
+          <div className="mt-5 divide-y divide-white/[.07]">
+            {(
+              [
+                [
+                  "emailNotifications",
+                  "Email notifications",
+                  "Receive important contract activity updates.",
+                ],
+                [
+                  "deadlineAlerts",
+                  "Deadline alerts",
+                  "Be notified before obligations come due.",
+                ],
+                [
+                  "renewalAlerts",
+                  "Renewal alerts",
+                  "Track renewal and notice windows.",
+                ],
+                [
+                  "overdueAlerts",
+                  "Overdue obligation alerts",
+                  "Escalate obligations that pass their due date.",
+                ],
+                [
+                  "weeklySummary",
+                  "Weekly contract summary",
+                  "Receive a weekly portfolio digest.",
+                ],
+              ] as const
+            ).map(([key, label, detail]) => {
+              const enabled = settings?.[key] ?? false;
+              return (
+                <div
+                  key={key}
+                  className="flex items-center justify-between gap-4 py-4"
+                >
+                  <div>
+                    <div className="text-sm font-medium text-[#e3e4ea]">
+                      {label}
+                    </div>
+                    <div className="mt-1 text-xs text-[#737984]">{detail}</div>
+                  </div>
+                  <button
+                    role="switch"
+                    aria-checked={enabled}
+                    disabled={settingsLoading || settingsMutation.isPending}
+                    onClick={() => toggleSetting(key)}
+                    className={`relative h-6 w-11 shrink-0 rounded-full border transition ${enabled ? "border-[#7c87f4]/70 bg-[#5e6ad2]" : "border-white/[.14] bg-white/[.06]"}`}
+                  >
+                    <span
+                      className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-6" : "translate-x-1"}`}
+                    />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function AuthScreen({ loading }: { loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#070709] text-sm text-[#858b98]">
+        Checking your secure session…
+      </div>
+    );
+  }
+  return (
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#070709] px-5 text-center">
+      <div className="ambient">
+        <div className="ambient-blob one" />
+        <div className="ambient-blob two" />
+      </div>
+      <div className="relative z-10 w-full max-w-md">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#7b86f5] to-[#414a9f] shadow-[0_8px_24px_rgba(94,106,210,.35)]">
+          <FileCheck2 size={23} color="white" />
+        </div>
+        <div className="mt-6 text-[11px] font-semibold uppercase tracking-[.2em] text-[#7c87f4]">
+          ContractLens
+        </div>
+        <h1 className="mt-3 font-display text-4xl font-semibold tracking-[-.06em] text-[#f4f4f6]">
+          Understand every contract.
+        </h1>
+        <p className="mt-4 text-sm leading-6 text-[#858b98]">
+          Track every obligation with evidence-grounded intelligence built for
+          modern teams.
+        </p>
+        <button
+          onClick={() => startLogin()}
+          className="button-primary mt-8 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold"
+        >
+          <ShieldCheck size={16} /> Continue with Google
+        </button>
+        <p className="mt-5 text-[11px] text-[#626874]">
+          Secure OAuth sign-in. ContractLens never stores your Google password.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [view, setView] = useState<View>("dashboard");
   const [collapsed, setCollapsed] = useState(false);
@@ -2346,7 +2607,7 @@ export default function Home() {
     null
   );
   const [uploadOpen, setUploadOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const userName = user?.name?.trim().split(/\s+/)[0] || "there";
   const listInput = useMemo(() => ({ search, status: "all" }), [search]);
   const { data: dashboard } = trpc.dashboard.overview.useQuery();
@@ -2358,6 +2619,8 @@ export default function Home() {
     [selectedContractId]
   );
   const { data: selectedContract } = trpc.contracts.get.useQuery(selectedInput);
+  if (!loading && !user) return <AuthScreen loading={false} />;
+  if (loading) return <AuthScreen loading />;
   const openContract = (id: string) => {
     setSelectedContractId(id);
     setView("contracts");
@@ -2406,6 +2669,7 @@ export default function Home() {
     if (view === "compare") return <CompareView contracts={contracts} />;
     if (view === "analytics")
       return <AnalyticsView contracts={contracts} obligations={obligations} />;
+    if (view === "settings") return <SettingsView />;
     return (
       <div className="glass-panel rounded-2xl p-8 text-sm text-[#858b98]">
         Loading workspace…

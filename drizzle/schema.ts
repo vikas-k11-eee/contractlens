@@ -1,4 +1,5 @@
 import {
+  boolean,
   int,
   mysqlEnum,
   mysqlTable,
@@ -13,6 +14,7 @@ export const users = mysqlTable("users", {
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
+  profileImage: varchar("profileImage", { length: 512 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -20,9 +22,30 @@ export const users = mysqlTable("users", {
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 });
 
+export const workspaces = mysqlTable("workspaces", {
+  id: int("id").autoincrement().primaryKey(),
+  ownerId: int("ownerId").notNull().unique(),
+  name: varchar("name", { length: 160 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const userSettings = mysqlTable("userSettings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  emailNotifications: boolean("emailNotifications").default(true).notNull(),
+  deadlineAlerts: boolean("deadlineAlerts").default(true).notNull(),
+  renewalAlerts: boolean("renewalAlerts").default(true).notNull(),
+  overdueAlerts: boolean("overdueAlerts").default(true).notNull(),
+  weeklySummary: boolean("weeklySummary").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 export const contracts = mysqlTable("contracts", {
   id: int("id").autoincrement().primaryKey(),
   ownerId: int("ownerId").notNull(),
+  workspaceId: int("workspaceId").notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   contractType: varchar("contractType", { length: 120 }).notNull(),
   status: mysqlEnum("status", ["active", "review", "expiring", "archived"])
@@ -51,6 +74,7 @@ export const contractParties = mysqlTable("contractParties", {
 export const documents = mysqlTable("documents", {
   id: int("id").autoincrement().primaryKey(),
   contractId: int("contractId").notNull(),
+  workspaceId: int("workspaceId").notNull(),
   fileName: varchar("fileName", { length: 255 }).notNull(),
   mimeType: varchar("mimeType", { length: 120 }).notNull(),
   fileKey: varchar("fileKey", { length: 512 }),
@@ -91,6 +115,7 @@ export const clauses = mysqlTable("clauses", {
 export const obligations = mysqlTable("obligations", {
   id: int("id").autoincrement().primaryKey(),
   contractId: int("contractId").notNull(),
+  workspaceId: int("workspaceId").notNull(),
   clauseId: int("clauseId"),
   obligation: text("obligation").notNull(),
   responsibleParty: varchar("responsibleParty", { length: 255 }).notNull(),
@@ -134,6 +159,7 @@ export const deadlines = mysqlTable("deadlines", {
 export const alerts = mysqlTable("alerts", {
   id: int("id").autoincrement().primaryKey(),
   contractId: int("contractId").notNull(),
+  workspaceId: int("workspaceId").notNull(),
   obligationId: int("obligationId"),
   alertType: varchar("alertType", { length: 120 }).notNull(),
   message: text("message").notNull(),
@@ -165,6 +191,7 @@ export const chatSessions = mysqlTable("chatSessions", {
   id: int("id").autoincrement().primaryKey(),
   contractId: int("contractId").notNull(),
   userId: int("userId").notNull(),
+  workspaceId: int("workspaceId").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

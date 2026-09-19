@@ -15,6 +15,13 @@
       "when": 1789828406898,
       "tag": "0001_perfect_scorpion",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1789834264258,
+      "tag": "0002_silent_rafael_vega",
+      "breakpoints": true
     }
   ]
 }

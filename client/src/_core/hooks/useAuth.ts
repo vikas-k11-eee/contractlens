@@ -47,6 +47,9 @@ export function useAuth(options?: UseAuthOptions) {
       } catch {}
       utils.auth.me.setData(undefined, null);
       await utils.auth.me.invalidate();
+      if (typeof window !== "undefined") {
+        window.location.assign("/");
+      }
     }
   }, [logoutMutation, utils]);
 
