@@ -107,7 +107,7 @@ export const appRouter = router({
       }),
     ownedGet: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
-      .query(() => undefined as Contract | undefined),
+      .query(() => null as Contract | null),
     list: protectedProcedure
       .input(
         z
@@ -124,7 +124,7 @@ export const appRouter = router({
       }),
     get: protectedProcedure
       .input(z.object({ id: z.string() }))
-      .query(() => undefined as Contract | undefined),
+      .query(() => null as Contract | null),
     obligations: protectedProcedure
       .input(z.object({ id: z.string() }))
       .query(() => []),
@@ -136,7 +136,7 @@ export const appRouter = router({
       .query(() => []),
     summary: protectedProcedure
       .input(z.object({ id: z.string() }))
-      .query(() => undefined),
+      .query(() => null),
     query: protectedProcedure
       .input(z.object({ id: z.string(), question: z.string().min(3) }))
       .mutation(() => ({
