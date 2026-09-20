@@ -4,6 +4,8 @@ import {
   InsertUser,
   contracts,
   documents,
+  chatMessages,
+  chatSessions,
   alerts,
   obligations,
   userSettings,
@@ -373,4 +375,76 @@ export async function createWorkspaceUpload(input: {
     documentId: Number(documentInsert[0].insertId),
     fileName: input.fileName,
   };
+}
+
+export async function getChatContext(
+  workspaceId: number,
+  contractIds: number[] = []
+) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await listWorkspaceContracts(workspaceId);
+  const selected = contractIds.length
+    ? rows.filter(row => contractIds.includes(row.id))
+    : rows;
+  const docs = await db
+    .select()
+    .from(documents)
+    .where(eq(documents.workspaceId, workspaceId));
+  return selected.map(contract => ({
+    contract,
+    document:
+      docs.find(document => document.contractId === contract.id) ?? null,
+  }));
+}
+
+export async function getOrCreateChatSession(
+  userId: number,
+  workspaceId: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  const existing = await db
+    .select()
+    .from(chatSessions)
+    .where(
+      and(
+        eq(chatSessions.userId, userId),
+        eq(chatSessions.workspaceId, workspaceId)
+      )
+    )
+    .limit(1);
+  if (existing[0]) return existing[0];
+  const inserted = await db
+    .insert(chatSessions)
+    .values({ contractId: 0, userId, workspaceId });
+  const created = await db
+    .select()
+    .from(chatSessions)
+    .where(eq(chatSessions.id, Number(inserted[0].insertId)))
+    .limit(1);
+  if (!created[0]) throw new Error("Chat session could not be created");
+  return created[0];
+}
+
+export async function listChatMessages(sessionId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(chatMessages)
+    .where(eq(chatMessages.sessionId, sessionId));
+}
+
+export async function saveChatMessage(
+  sessionId: number,
+  role: "user" | "assistant",
+  content: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  const inserted = await db
+    .insert(chatMessages)
+    .values({ sessionId, role, content });
+  return Number(inserted[0].insertId);
 }

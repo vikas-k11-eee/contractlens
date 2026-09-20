@@ -14,6 +14,10 @@ import {
   getWorkspaceDashboard,
   getWorkspaceDashboardData,
   createWorkspaceUpload,
+  getChatContext,
+  getOrCreateChatSession,
+  listChatMessages,
+  saveChatMessage,
   listWorkspaceAlerts,
   listWorkspaceContractCards,
   listWorkspaceContracts,
@@ -22,6 +26,7 @@ import {
   updateUserSettings,
 } from "./db";
 import { workspaces } from "../drizzle/schema";
+import { invokeLLM } from "./_core/llm";
 import {
   getEmptyDashboard,
   getDashboard,
@@ -83,6 +88,76 @@ export const appRouter = router({
         })
       )
       .mutation(({ ctx, input }) => updateUserSettings(ctx.user.id, input)),
+  }),
+  chat: router({
+    history: protectedProcedure.query(async ({ ctx }) => {
+      const account = await getAccountContext(ctx.user.id);
+      if (!account?.workspace) return { sessionId: null, messages: [] };
+      const session = await getOrCreateChatSession(
+        ctx.user.id,
+        account.workspace.id
+      );
+      return {
+        sessionId: session.id,
+        messages: await listChatMessages(session.id),
+      };
+    }),
+    ask: protectedProcedure
+      .input(
+        z.object({
+          question: z.string().trim().min(2).max(4000),
+          contractIds: z.array(z.number().int().positive()).max(50).default([]),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const account = await getAccountContext(ctx.user.id);
+        if (!account?.workspace) throw new Error("Workspace is not available");
+        const session = await getOrCreateChatSession(
+          ctx.user.id,
+          account.workspace.id
+        );
+        await saveChatMessage(session.id, "user", input.question);
+        const context = await getChatContext(
+          account.workspace.id,
+          input.contractIds
+        );
+        const contextText = context.length
+          ? context
+              .map(
+                ({ contract, document }) =>
+                  `Contract: ${contract.name}\nType: ${contract.contractType}\nStatus: ${contract.status}\nOwner: ${contract.ownerName ?? "Not specified"}\nSource file: ${document?.fileName ?? "Not available"}\nNo extracted clause text is available yet.`
+              )
+              .join("\n\n")
+          : "No contracts were found in this workspace.";
+        const response = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are ContractLens AI. Answer only from the supplied workspace contract context. Never invent clauses, dates, payments, or legal facts. If the context does not contain the answer, say: I couldn't find this information in your uploaded contracts. Clearly state when document text extraction is still pending.",
+            },
+            {
+              role: "user",
+              content: `Workspace contract context:\n${contextText}\n\nQuestion: ${input.question}`,
+            },
+          ],
+        });
+        const content =
+          typeof response.choices?.[0]?.message?.content === "string"
+            ? response.choices[0].message.content
+            : "I couldn't generate an answer from your uploaded contracts.";
+        await saveChatMessage(session.id, "assistant", content);
+        return {
+          answer: content,
+          sources: context.map(({ contract, document }) => ({
+            contractId: contract.id,
+            contractName: contract.name,
+            documentName: document?.fileName ?? null,
+            section: "Contract metadata",
+            page: null,
+          })),
+        };
+      }),
   }),
   dashboard: router({
     overview: protectedProcedure

@@ -27,6 +27,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   Menu,
+  MessageSquare,
   MoreHorizontal,
   PanelLeftClose,
   Plus,
@@ -42,6 +43,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { Streamdown } from "streamdown";
 import type {
   Alert,
   Contract,
@@ -67,6 +69,7 @@ const navGroups = [
       { id: "alerts", label: "Alerts", icon: Bell, count: 3 },
       { id: "compare", label: "Compare", icon: Compare },
       { id: "analytics", label: "Analytics", icon: Gauge },
+      { id: "chat", label: "AI Chat", icon: MessageSquare },
     ],
   },
 ];
@@ -79,6 +82,7 @@ type View =
   | "alerts"
   | "compare"
   | "analytics"
+  | "chat"
   | "settings";
 
 const formatDate = (value: string) =>
@@ -249,6 +253,7 @@ function Topbar({
     alerts: "Alerts",
     compare: "Compare versions",
     analytics: "Analytics",
+    chat: "AI Contract Chat",
     settings: "Workspace settings",
   };
   return (
@@ -2633,6 +2638,268 @@ function SettingsView() {
   );
 }
 
+function ChatView({
+  contracts,
+  onUpload,
+  onOpenContract,
+}: {
+  contracts: Contract[];
+  onUpload: () => void;
+  onOpenContract: (id: string) => void;
+}) {
+  const history = trpc.chat.history.useQuery();
+  const ask = trpc.chat.ask.useMutation();
+  const [question, setQuestion] = useState("");
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [messages, setMessages] = useState<
+    Array<{
+      role: "user" | "assistant";
+      content: string;
+      sources?: Array<{
+        contractId: number;
+        contractName: string;
+        documentName: string | null;
+        section: string;
+        page: number | null;
+      }>;
+    }>
+  >([]);
+  useEffect(() => {
+    if (history.data?.messages) {
+      setMessages(
+        history.data.messages.map(message => ({
+          role: message.role,
+          content: message.content,
+        }))
+      );
+    }
+  }, [history.data]);
+  const submit = () => {
+    const trimmed = question.trim();
+    if (!trimmed || ask.isPending) return;
+    setMessages(current => [...current, { role: "user", content: trimmed }]);
+    setQuestion("");
+    ask.mutate(
+      { question: trimmed, contractIds: selectedIds },
+      {
+        onSuccess: result =>
+          setMessages(current => [
+            ...current,
+            {
+              role: "assistant",
+              content: result.answer,
+              sources: result.sources,
+            },
+          ]),
+        onError: error =>
+          setMessages(current => [
+            ...current,
+            {
+              role: "assistant",
+              content:
+                error.message || "I couldn't answer from your contracts.",
+            },
+          ]),
+      }
+    );
+  };
+  const toggleContract = (id: number) =>
+    setSelectedIds(current =>
+      current.includes(id)
+        ? current.filter(item => item !== id)
+        : [...current, id]
+    );
+  const suggestions = contracts.length
+    ? [
+        "Summarize my active contracts",
+        "Which contracts are expiring soon?",
+        "What obligations are still pending?",
+        "Compare my uploaded contracts",
+      ]
+    : [
+        "What contracts do I currently have?",
+        "Summarize my active contracts",
+        "What deadlines are coming up?",
+      ];
+  return (
+    <div className="grid min-h-[calc(100vh-140px)] gap-5 lg:grid-cols-[260px_1fr]">
+      <aside className="glass-panel rounded-2xl p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[.14em] text-[#737984]">
+              Knowledge source
+            </div>
+            <h2 className="mt-1 font-display text-base font-semibold text-[#f0f1f5]">
+              My contracts
+            </h2>
+          </div>
+          <button
+            onClick={onUpload}
+            className="button-ghost rounded-lg p-2"
+            aria-label="Upload contract"
+          >
+            <Plus size={15} />
+          </button>
+        </div>
+        <button
+          onClick={() => setSelectedIds([])}
+          className={`mt-5 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs ${selectedIds.length === 0 ? "bg-[#5e6ad2]/20 text-[#d7d9ff]" : "text-[#9297a3] hover:bg-white/[.04]"}`}
+        >
+          <span
+            className={`flex h-4 w-4 items-center justify-center rounded border ${selectedIds.length === 0 ? "border-[#8992ff] bg-[#6974e8]" : "border-white/[.18]"}`}
+          >
+            {selectedIds.length === 0 && <Check size={11} />}
+          </span>
+          All my contracts
+        </button>
+        <div className="mt-2 space-y-1">
+          {contracts.map(contract => {
+            const selected = selectedIds.includes(Number(contract.id));
+            return (
+              <button
+                key={contract.id}
+                onClick={() => toggleContract(Number(contract.id))}
+                className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs ${selected ? "bg-[#5e6ad2]/15 text-[#d7d9ff]" : "text-[#9297a3] hover:bg-white/[.04]"}`}
+              >
+                <span
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${selected ? "border-[#8992ff] bg-[#6974e8]" : "border-white/[.18]"}`}
+                >
+                  {selected && <Check size={11} />}
+                </span>
+                <span className="truncate">{contract.name}</span>
+              </button>
+            );
+          })}
+        </div>
+        {!contracts.length && (
+          <div className="mt-5 rounded-xl border border-dashed border-white/[.12] p-3 text-xs leading-5 text-[#737984]">
+            No uploaded contracts yet. Upload a PDF or DOCX to start asking
+            questions.
+          </div>
+        )}
+      </aside>
+      <section className="glass-panel-strong flex min-h-[620px] flex-col rounded-2xl">
+        <div className="flex items-center justify-between border-b border-white/[.07] px-5 py-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles size={15} className="text-[#aeb5ff]" />
+              <h1 className="font-display text-lg font-semibold text-[#f3f3f6]">
+                ContractLens AI
+              </h1>
+            </div>
+            <p className="mt-1 text-xs text-[#737984]">
+              Answers are restricted to your authenticated workspace.
+            </p>
+          </div>
+          <button
+            onClick={() => setMessages([])}
+            className="button-ghost rounded-lg px-3 py-2 text-xs"
+          >
+            New chat
+          </button>
+        </div>
+        <div className="flex-1 space-y-5 overflow-y-auto p-5">
+          {!messages.length && (
+            <div className="mx-auto max-w-xl py-12 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#5e6ad2]/15 text-[#aeb5ff]">
+                <MessageSquare size={24} />
+              </div>
+              <h2 className="mt-5 font-display text-2xl font-semibold text-[#f2f2f5]">
+                Ask anything about your contracts
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-[#858b98]">
+                Select one or more contracts on the left, or search your full
+                library.
+              </p>
+              <div className="mt-7 grid gap-2 text-left sm:grid-cols-2">
+                {suggestions.map(item => (
+                  <button
+                    key={item}
+                    onClick={() => setQuestion(item)}
+                    className="rounded-xl border border-white/[.08] bg-white/[.025] px-3 py-3 text-xs text-[#b8bcc8] transition hover:border-[#7c87f4]/40 hover:text-white"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {messages.map((message, index) => (
+            <div
+              key={`${message.role}-${index}`}
+              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-6 ${message.role === "user" ? "bg-[#5e6ad2] text-white" : "border border-white/[.08] bg-white/[.03] text-[#d6d8e0]"}`}
+              >
+                {message.role === "assistant" ? (
+                  <Streamdown>{message.content}</Streamdown>
+                ) : (
+                  message.content
+                )}
+                {message.sources?.length ? (
+                  <div className="mt-4 border-t border-white/[.1] pt-3">
+                    <div className="mb-2 text-[10px] font-semibold uppercase tracking-[.12em] text-[#858b98]">
+                      Sources
+                    </div>
+                    {message.sources.map(source => (
+                      <button
+                        key={`${source.contractId}-${source.documentName}`}
+                        onClick={() =>
+                          onOpenContract(String(source.contractId))
+                        }
+                        className="mr-2 mb-1 inline-flex items-center gap-1 rounded-md bg-white/[.06] px-2 py-1 text-[11px] text-[#b8beff] hover:bg-white/[.1]"
+                      >
+                        <FileText size={11} />
+                        {source.contractName}
+                        {source.documentName ? ` · ${source.documentName}` : ""}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ))}
+          {ask.isPending && (
+            <div className="text-xs text-[#858b98]">
+              ContractLens is checking your workspace…
+            </div>
+          )}
+        </div>
+        <div className="border-t border-white/[.07] p-4">
+          <div className="flex items-end gap-2 rounded-xl border border-white/[.1] bg-[#08080b] p-2 focus-within:border-[#7c87f4]/60">
+            <textarea
+              value={question}
+              onChange={event => setQuestion(event.target.value)}
+              onKeyDown={event => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  submit();
+                }
+              }}
+              placeholder="Ask about your contracts…"
+              rows={2}
+              className="min-h-10 flex-1 resize-none bg-transparent px-2 py-1 text-sm text-[#e8e9ee] outline-none placeholder:text-[#5f6470]"
+            />
+            <button
+              onClick={submit}
+              disabled={!question.trim() || ask.isPending}
+              className="button-primary rounded-lg p-2.5 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Send question"
+            >
+              <ArrowUpRight size={16} />
+            </button>
+          </div>
+          <div className="mt-2 text-[10px] text-[#626874]">
+            Contract-specific answers cite the source records available in your
+            workspace.
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function AuthScreen({ loading }: { loading: boolean }) {
   if (loading) {
     return (
@@ -2676,7 +2943,11 @@ function AuthScreen({ loading }: { loading: boolean }) {
 }
 
 export default function Home() {
-  const [view, setView] = useState<View>("dashboard");
+  const [view, setView] = useState<View>(() =>
+    typeof window !== "undefined" && window.location.pathname === "/chat"
+      ? "chat"
+      : "dashboard"
+  );
   const [workspaceMode, setWorkspaceMode] = useState<"personal" | "demo">(
     "personal"
   );
@@ -2779,6 +3050,19 @@ export default function Home() {
     if (view === "compare") return <CompareView contracts={contracts} />;
     if (view === "analytics")
       return <AnalyticsView contracts={contracts} obligations={obligations} />;
+    if (view === "chat")
+      return isDemoWorkspace ? (
+        <div className="glass-panel rounded-2xl p-8 text-sm text-[#858b98]">
+          AI Chat is connected to your personal workspace. Switch out of Demo
+          workspace to search uploaded contracts.
+        </div>
+      ) : (
+        <ChatView
+          contracts={contracts}
+          onUpload={openUpload}
+          onOpenContract={openContract}
+        />
+      );
     if (view === "settings") return <SettingsView />;
     return (
       <div className="glass-panel rounded-2xl p-8 text-sm text-[#858b98]">
