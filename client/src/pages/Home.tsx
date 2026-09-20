@@ -233,10 +233,12 @@ function NavButton({
 function Topbar({
   view,
   onUpload,
+  onSearch,
   onMobileMenu,
 }: {
   view: View;
   onUpload: () => void;
+  onSearch: () => void;
   onMobileMenu: () => void;
 }) {
   const titles: Record<View, string> = {
@@ -269,7 +271,11 @@ function Topbar({
         </div>
       </div>
       <div className="flex items-center gap-2.5">
-        <button className="button-ghost hidden items-center gap-2 rounded-lg px-3 py-2 text-xs text-[#959aa6] sm:flex">
+        <button
+          onClick={onSearch}
+          className="button-ghost hidden items-center gap-2 rounded-lg px-3 py-2 text-xs text-[#959aa6] sm:flex"
+          aria-label="Search contracts"
+        >
           <Command size={14} />
           <span>Search</span>
           <kbd className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-[#666c77]">
@@ -2805,7 +2811,11 @@ export default function Home() {
         >
           <Topbar
             view={view}
-            onUpload={() => setUploadOpen(true)}
+            onUpload={openUpload}
+            onSearch={() => {
+              setSelectedContractId(null);
+              setView("contracts");
+            }}
             onMobileMenu={() => setMobileMenu(!mobileMenu)}
           />
           {mobileMenu && (
