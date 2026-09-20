@@ -2754,12 +2754,14 @@ function ChatView({
   contracts,
   onUpload,
   onOpenContract,
+  demo = false,
 }: {
   contracts: Contract[];
   onUpload: () => void;
   onOpenContract: (id: string) => void;
+  demo?: boolean;
 }) {
-  const history = trpc.chat.history.useQuery();
+  const history = trpc.chat.history.useQuery(undefined, { enabled: !demo });
   const ask = trpc.chat.ask.useMutation();
   const [question, setQuestion] = useState("");
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -2768,7 +2770,7 @@ function ChatView({
       role: "user" | "assistant";
       content: string;
       sources?: Array<{
-        contractId: number;
+        contractId: number | string;
         contractName: string;
         documentName: string | null;
         section: string;
@@ -2792,7 +2794,11 @@ function ChatView({
     setMessages(current => [...current, { role: "user", content: trimmed }]);
     setQuestion("");
     ask.mutate(
-      { question: trimmed, contractIds: selectedIds },
+      {
+        question: trimmed,
+        contractIds: selectedIds,
+        mode: demo ? "demo" : "personal",
+      },
       {
         onSuccess: result =>
           setMessages(current => [
@@ -2842,7 +2848,7 @@ function ChatView({
               Knowledge source
             </div>
             <h2 className="mt-1 font-display text-base font-semibold text-[#f0f1f5]">
-              My contracts
+              {demo ? "Demo contracts" : "My contracts"}
             </h2>
           </div>
           <button
@@ -2900,7 +2906,9 @@ function ChatView({
               </h1>
             </div>
             <p className="mt-1 text-xs text-[#737984]">
-              Answers are restricted to your authenticated workspace.
+              {demo
+                ? "Read-only sample contracts for exploring ContractLens AI."
+                : "Answers are restricted to your authenticated workspace."}
             </p>
           </div>
           <button
@@ -3180,18 +3188,10 @@ export default function Home() {
     if (view === "analytics")
       return <AnalyticsView contracts={contracts} obligations={obligations} />;
     if (view === "chat")
-      return isGuest ? (
-        <div className="glass-panel rounded-2xl p-8 text-sm text-[#858b98]">
-          Sign in with Manus to ask questions about your private contracts.
-        </div>
-      ) : isDemoWorkspace ? (
-        <div className="glass-panel rounded-2xl p-8 text-sm text-[#858b98]">
-          AI Chat is connected to your personal workspace. Switch out of Demo
-          workspace to search uploaded contracts.
-        </div>
-      ) : (
+      return (
         <ChatView
           contracts={contracts}
+          demo={isDemoWorkspace}
           onUpload={openUpload}
           onOpenContract={openContract}
         />

@@ -91,7 +91,8 @@ export const appRouter = router({
       .mutation(({ ctx, input }) => updateUserSettings(ctx.user.id, input)),
   }),
   chat: router({
-    history: protectedProcedure.query(async ({ ctx }) => {
+    history: publicProcedure.query(async ({ ctx }) => {
+      if (!ctx.user) return { sessionId: null, messages: [] };
       const account = await getAccountContext(ctx.user.id);
       if (!account?.workspace) return { sessionId: null, messages: [] };
       const session = await getOrCreateChatSession(
@@ -103,14 +104,51 @@ export const appRouter = router({
         messages: await listChatMessages(session.id),
       };
     }),
-    ask: protectedProcedure
+    ask: publicProcedure
       .input(
         z.object({
           question: z.string().trim().min(2).max(4000),
           contractIds: z.array(z.number().int().positive()).max(50).default([]),
+          mode: z.enum(["personal", "demo"]).default("personal"),
         })
       )
       .mutation(async ({ ctx, input }) => {
+        if (input.mode === "demo") {
+          const contextText = demoContracts
+            .map(
+              contract =>
+                `Demo contract: ${contract.name}\nType: ${contract.type}\nStatus: ${contract.status}\nOwner: ${contract.owner}\nThis is sample workspace data for demonstration.`
+            )
+            .join("\n\n");
+          const response = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are ContractLens AI in a read-only Demo workspace. Answer only from the supplied sample contract context. Clearly say that the information is sample demo data. Never present demo data as the user's private contracts. If the context does not contain the answer, say: I couldn't find this information in the demo workspace.",
+              },
+              {
+                role: "user",
+                content: `Demo workspace context:\n${contextText}\n\nQuestion: ${input.question}`,
+              },
+            ],
+          });
+          const answer =
+            typeof response.choices?.[0]?.message?.content === "string"
+              ? response.choices[0].message.content
+              : "I couldn't generate an answer from the demo workspace.";
+          return {
+            answer,
+            sources: demoContracts.map(contract => ({
+              contractId: contract.id,
+              contractName: contract.name,
+              documentName: null,
+              section: "Demo workspace sample",
+              page: null,
+            })),
+          };
+        }
+        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
         const account = await getAccountContext(ctx.user.id);
         if (!account?.workspace) throw new Error("Workspace is not available");
         const session = await getOrCreateChatSession(
