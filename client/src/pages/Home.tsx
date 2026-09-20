@@ -239,14 +239,28 @@ function Topbar({
   onUpload,
   onSearch,
   onLogin,
+  onOpenSettings,
+  user,
+  workspaceName,
   onMobileMenu,
 }: {
   view: View;
   onUpload: () => void;
   onSearch: () => void;
   onLogin: () => void;
+  onOpenSettings: () => void;
+  user: {
+    name?: string | null;
+    email?: string | null;
+    profileImage?: string | null;
+    loginMethod?: string | null;
+    role?: string | null;
+  } | null;
+  workspaceName: string;
   onMobileMenu: () => void;
 }) {
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileName = user?.name?.trim() || "Account user";
   const titles: Record<View, string> = {
     dashboard: "Dashboard",
     contracts: "Contract library",
@@ -289,12 +303,100 @@ function Topbar({
             ⌘ K
           </kbd>
         </button>
-        <button
-          onClick={onLogin}
-          className="button-ghost hidden items-center gap-2 rounded-lg px-3 py-2 text-xs text-[#c8caff] sm:flex"
-        >
-          <ShieldCheck size={14} /> Sign in
-        </button>
+        {user ? (
+          <div className="relative">
+            <button
+              onClick={() => setProfileOpen(open => !open)}
+              className="button-ghost flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-[#d8d9e4]"
+              aria-expanded={profileOpen}
+              aria-label="Open user profile"
+            >
+              {user.profileImage ? (
+                <img
+                  src={user.profileImage}
+                  alt=""
+                  className="h-6 w-6 rounded-full object-cover"
+                />
+              ) : (
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#5964c5] text-[10px] font-bold text-white">
+                  {initials(profileName)}
+                </span>
+              )}
+              <span className="hidden max-w-[120px] truncate sm:inline">
+                {profileName}
+              </span>
+              <ChevronDown
+                size={13}
+                className={
+                  profileOpen
+                    ? "rotate-180 transition-transform"
+                    : "transition-transform"
+                }
+              />
+            </button>
+            {profileOpen && (
+              <div className="absolute right-0 top-[calc(100%+10px)] z-50 w-72 rounded-2xl border border-white/[.1] bg-[#111116] p-4 shadow-2xl shadow-black/40">
+                <div className="flex items-center gap-3 border-b border-white/[.08] pb-4">
+                  {user.profileImage ? (
+                    <img
+                      src={user.profileImage}
+                      alt=""
+                      className="h-11 w-11 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#5964c5] text-sm font-bold text-white">
+                      {initials(profileName)}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-[#f1f2f5]">
+                      {profileName}
+                    </div>
+                    <div className="truncate text-xs text-[#858b98]">
+                      {user.email || "Email not available"}
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-3 py-4 text-xs">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-[#737984]">Workspace</span>
+                    <span className="max-w-[155px] truncate text-right text-[#d7d9e1]">
+                      {workspaceName}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-[#737984]">Sign-in method</span>
+                    <span className="capitalize text-[#d7d9e1]">
+                      {user.loginMethod || "Manus"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-[#737984]">Role</span>
+                    <span className="capitalize text-[#d7d9e1]">
+                      {user.role || "user"}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setProfileOpen(false);
+                    onOpenSettings();
+                  }}
+                  className="button-ghost w-full rounded-lg border border-white/[.08] px-3 py-2 text-xs text-[#9da4ff]"
+                >
+                  Account details in Settings
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={onLogin}
+            className="button-ghost hidden items-center gap-2 rounded-lg px-3 py-2 text-xs text-[#c8caff] sm:flex"
+          >
+            <ShieldCheck size={14} /> Sign in
+          </button>
+        )}
         <button
           onClick={onUpload}
           className="button-primary flex items-center gap-2 rounded-lg px-3.5 py-2.5 text-xs font-semibold"
@@ -3135,6 +3237,9 @@ export default function Home() {
             view={view}
             onUpload={isGuest ? () => startLogin() : openUpload}
             onLogin={() => startLogin()}
+            onOpenSettings={() => setView("settings")}
+            user={user}
+            workspaceName={workspaceName}
             onSearch={() => {
               setSelectedContractId(null);
               setView("contracts");
