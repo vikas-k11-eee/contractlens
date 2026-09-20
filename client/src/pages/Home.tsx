@@ -410,12 +410,14 @@ function DashboardView({
   setView,
   userName,
   workspaceName,
+  onToggleWorkspace,
 }: {
   dashboard: DashboardData;
   onOpenContract: (id: string) => void;
   setView: (view: View) => void;
   userName: string;
   workspaceName: string;
+  onToggleWorkspace: () => void;
 }) {
   return (
     <div className="space-y-6">
@@ -434,10 +436,14 @@ function DashboardView({
             attention this week.
           </p>
         </div>
-        <div className="pill flex w-fit items-center gap-2 rounded-lg px-3 py-2 text-xs text-[#959aa6]">
+        <button
+          onClick={onToggleWorkspace}
+          className="pill flex w-fit items-center gap-2 rounded-lg px-3 py-2 text-xs text-[#959aa6] hover:text-white"
+          title="Switch workspace"
+        >
           <span className="h-1.5 w-1.5 rounded-full bg-[#7c87f4]" />
           {workspaceName} <ChevronDown size={13} />
-        </div>
+        </button>
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         <MetricCard
@@ -2665,6 +2671,9 @@ function AuthScreen({ loading }: { loading: boolean }) {
 
 export default function Home() {
   const [view, setView] = useState<View>("dashboard");
+  const [workspaceMode, setWorkspaceMode] = useState<"personal" | "demo">(
+    "personal"
+  );
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [search, setSearch] = useState("");
@@ -2675,15 +2684,29 @@ export default function Home() {
   const { user, loading } = useAuth();
   const { data: account } = trpc.auth.account.useQuery();
   const userName = user?.name?.trim().split(/\s+/)[0] || "there";
-  const workspaceName = account?.workspace?.name || "Your workspace";
-  const listInput = useMemo(() => ({ search, status: "all" }), [search]);
-  const { data: dashboard } = trpc.dashboard.overview.useQuery();
+  const isDemoWorkspace = workspaceMode === "demo";
+  const workspaceName = isDemoWorkspace
+    ? "Demo workspace"
+    : account?.workspace?.name || "Your workspace";
+  const listInput = useMemo(
+    () => ({ search, status: "all", mode: workspaceMode }),
+    [search, workspaceMode]
+  );
+  const dashboardInput = useMemo(
+    () => ({ mode: workspaceMode }),
+    [workspaceMode]
+  );
+  const { data: dashboard } = trpc.dashboard.overview.useQuery(dashboardInput);
   const { data: contracts = [] } = trpc.contracts.list.useQuery(listInput);
-  const { data: obligations = [] } = trpc.obligations.list.useQuery();
-  const { data: alerts = [] } = trpc.alerts.list.useQuery();
+  const { data: obligations = [] } = trpc.obligations.list.useQuery({
+    mode: workspaceMode,
+  });
+  const { data: alerts = [] } = trpc.alerts.list.useQuery({
+    mode: workspaceMode,
+  });
   const selectedInput = useMemo(
-    () => ({ id: selectedContractId ?? "cld-001" }),
-    [selectedContractId]
+    () => ({ id: selectedContractId ?? "cld-001", mode: workspaceMode }),
+    [selectedContractId, workspaceMode]
   );
   const { data: selectedContract } = trpc.contracts.get.useQuery(selectedInput);
   if (!loading && !user) return <AuthScreen loading={false} />;
@@ -2692,6 +2715,13 @@ export default function Home() {
     setSelectedContractId(id);
     setView("contracts");
     setMobileMenu(false);
+  };
+  const openUpload = () => {
+    if (isDemoWorkspace) {
+      toast("Demo workspace is read-only. Switch to your workspace to upload.");
+      return;
+    }
+    setUploadOpen(true);
   };
   const currentView =
     selectedContractId && view === "contracts" ? "contract-detail" : view;
@@ -2712,6 +2742,12 @@ export default function Home() {
           setView={setView}
           userName={userName}
           workspaceName={workspaceName}
+          onToggleWorkspace={() => {
+            setWorkspaceMode(current =>
+              current === "personal" ? "demo" : "personal"
+            );
+            setSelectedContractId(null);
+          }}
         />
       );
     if (view === "contracts")
@@ -2721,7 +2757,7 @@ export default function Home() {
           search={search}
           setSearch={setSearch}
           onOpenContract={openContract}
-          onUpload={() => setUploadOpen(true)}
+          onUpload={openUpload}
         />
       );
     if (view === "obligations")
@@ -2759,7 +2795,7 @@ export default function Home() {
           }}
           collapsed={collapsed}
           setCollapsed={setCollapsed}
-          onUpload={() => setUploadOpen(true)}
+          onUpload={openUpload}
           user={user}
           workspaceName={workspaceName}
         />
@@ -2791,7 +2827,7 @@ export default function Home() {
                   collapsed={false}
                   setCollapsed={() => undefined}
                   onUpload={() => {
-                    setUploadOpen(true);
+                    openUpload();
                     setMobileMenu(false);
                   }}
                   user={user}

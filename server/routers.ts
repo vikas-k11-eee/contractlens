@@ -24,6 +24,11 @@ import {
 import { workspaces } from "../drizzle/schema";
 import {
   getEmptyDashboard,
+  getDashboard,
+  getContract,
+  getAllObligations,
+  demoAlerts,
+  demoContracts,
   type Alert,
   type CompareChange,
   type Contract,
@@ -80,12 +85,22 @@ export const appRouter = router({
       .mutation(({ ctx, input }) => updateUserSettings(ctx.user.id, input)),
   }),
   dashboard: router({
-    overview: protectedProcedure.query(async ({ ctx }) => {
-      const account = await getAccountContext(ctx.user.id);
-      return account?.workspace
-        ? getWorkspaceDashboardData(account.workspace.id)
-        : getEmptyDashboard();
-    }),
+    overview: protectedProcedure
+      .input(
+        z
+          .object({ mode: z.enum(["personal", "demo"]).default("personal") })
+          .optional()
+      )
+      .query(async ({ ctx, input }) => {
+        if (input?.mode === "demo") {
+          await getAccountContext(ctx.user.id);
+          return getDashboard();
+        }
+        const account = await getAccountContext(ctx.user.id);
+        return account?.workspace
+          ? getWorkspaceDashboardData(account.workspace.id)
+          : getEmptyDashboard();
+      }),
     owned: protectedProcedure.query(async ({ ctx }) => {
       const account = await getAccountContext(ctx.user.id);
       return account?.workspace
@@ -117,10 +132,24 @@ export const appRouter = router({
           .object({
             search: z.string().optional(),
             status: z.string().optional(),
+            mode: z.enum(["personal", "demo"]).default("personal"),
           })
           .optional()
       )
       .query(async ({ ctx, input }) => {
+        if (input?.mode === "demo") {
+          await getAccountContext(ctx.user.id);
+          const search = input.search?.toLowerCase().trim() ?? "";
+          const status = input.status ?? "all";
+          return demoContracts.filter(
+            contract =>
+              (!search ||
+                `${contract.name} ${contract.type} ${contract.owner}`
+                  .toLowerCase()
+                  .includes(search)) &&
+              (status === "all" || contract.status === status)
+          );
+        }
         const account = await getAccountContext(ctx.user.id);
         return account?.workspace
           ? listWorkspaceContractCards(
@@ -131,8 +160,17 @@ export const appRouter = router({
           : [];
       }),
     get: protectedProcedure
-      .input(z.object({ id: z.string() }))
+      .input(
+        z.object({
+          id: z.string(),
+          mode: z.enum(["personal", "demo"]).default("personal"),
+        })
+      )
       .query(async ({ ctx, input }) => {
+        if (input.mode === "demo") {
+          await getAccountContext(ctx.user.id);
+          return getContract(input.id);
+        }
         const account = await getAccountContext(ctx.user.id);
         const id = Number(input.id);
         return account?.workspace && Number.isInteger(id)
@@ -192,10 +230,23 @@ export const appRouter = router({
       }),
   }),
   obligations: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
-      const account = await getAccountContext(ctx.user.id);
-      return account?.workspace ? [] : [];
-    }),
+    list: protectedProcedure
+      .input(
+        z
+          .object({ mode: z.enum(["personal", "demo"]).default("personal") })
+          .optional()
+      )
+      .query(async ({ ctx, input }) => {
+        if (input?.mode === "demo") {
+          await getAccountContext(ctx.user.id);
+          return getAllObligations().map(obligation => ({
+            ...obligation,
+            contractName: getContract(obligation.contractId).name,
+          }));
+        }
+        const account = await getAccountContext(ctx.user.id);
+        return account?.workspace ? [] : [];
+      }),
     ownedList: protectedProcedure.query(async ({ ctx }) => {
       const account = await getAccountContext(ctx.user.id);
       return account?.workspace
@@ -204,10 +255,20 @@ export const appRouter = router({
     }),
   }),
   alerts: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
-      await getAccountContext(ctx.user.id);
-      return [] as Alert[];
-    }),
+    list: protectedProcedure
+      .input(
+        z
+          .object({ mode: z.enum(["personal", "demo"]).default("personal") })
+          .optional()
+      )
+      .query(async ({ ctx, input }) => {
+        if (input?.mode === "demo") {
+          await getAccountContext(ctx.user.id);
+          return demoAlerts;
+        }
+        await getAccountContext(ctx.user.id);
+        return [] as Alert[];
+      }),
     ownedList: protectedProcedure.query(async ({ ctx }) => {
       const account = await getAccountContext(ctx.user.id);
       return account?.workspace
