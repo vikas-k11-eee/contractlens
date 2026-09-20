@@ -1,0 +1,33 @@
+from pathlib import Path
+
+router = Path('/home/ubuntu/contractlens/server/routers.ts')
+s = router.read_text()
+s = s.replace('    list: protectedProcedure\n      .input(\n        z\n          .object({\n            search: z.string().optional(),\n            status: z.string().optional(),\n            mode: z.enum(["personal", "demo"]).default("personal"),\n          })', '    list: publicProcedure\n      .input(\n        z\n          .object({\n            search: z.string().optional(),\n            status: z.string().optional(),\n            mode: z.enum(["personal", "demo"]).default("personal"),\n          })', 1)
+s = s.replace('        if (input?.mode === "demo") {\n          await getAccountContext(ctx.user.id);\n          const search = input.search?.toLowerCase().trim() ?? "";', '        if (input?.mode === "demo") {\n          const search = input.search?.toLowerCase().trim() ?? "";', 1)
+s = s.replace('        }\n        const account = await getAccountContext(ctx.user.id);\n        return account?.workspace\n          ? listWorkspaceContractCards(', '        }\n        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });\n        const account = await getAccountContext(ctx.user.id);\n        return account?.workspace\n          ? listWorkspaceContractCards(', 1)
+s = s.replace('    get: protectedProcedure\n      .input(\n        z.object({\n          id: z.string(),\n          mode: z.enum(["personal", "demo"]).default("personal"),\n        })', '    get: publicProcedure\n      .input(\n        z.object({\n          id: z.string(),\n          mode: z.enum(["personal", "demo"]).default("personal"),\n        })', 1)
+s = s.replace('        if (input.mode === "demo") {\n          await getAccountContext(ctx.user.id);\n          return getContract(input.id);\n        }\n        const account = await getAccountContext(ctx.user.id);', '        if (input.mode === "demo") {\n          return getContract(input.id);\n        }\n        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });\n        const account = await getAccountContext(ctx.user.id);', 1)
+s = s.replace('  obligations: router({\n    list: protectedProcedure', '  obligations: router({\n    list: publicProcedure', 1)
+s = s.replace('        if (input?.mode === "demo") {\n          await getAccountContext(ctx.user.id);\n          return getAllObligations()', '        if (input?.mode === "demo") {\n          return getAllObligations()', 1)
+s = s.replace('        }\n        const account = await getAccountContext(ctx.user.id);\n        return account?.workspace ? [] : [];', '        }\n        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });\n        const account = await getAccountContext(ctx.user.id);\n        return account?.workspace ? [] : [];', 1)
+s = s.replace('  alerts: router({\n    list: protectedProcedure', '  alerts: router({\n    list: publicProcedure', 1)
+s = s.replace('        if (input?.mode === "demo") {\n          await getAccountContext(ctx.user.id);\n          return demoAlerts;', '        if (input?.mode === "demo") {\n          return demoAlerts;', 1)
+s = s.replace('        }\n        await getAccountContext(ctx.user.id);\n        return [] as Alert[];', '        }\n        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });\n        await getAccountContext(ctx.user.id);\n        return [] as Alert[];', 1)
+router.write_text(s)
+
+home = Path('/home/ubuntu/contractlens/client/src/pages/Home.tsx')
+s = home.read_text()
+s = s.replace('  onSearch,\n  onMobileMenu,', '  onSearch,\n  onLogin,\n  onMobileMenu,', 1)
+s = s.replace('  onSearch: () => void;\n  onMobileMenu:', '  onSearch: () => void;\n  onLogin: () => void;\n  onMobileMenu:', 1)
+s = s.replace('        <button\n          onClick={onUpload}', '        <button\n          onClick={onLogin}\n          className="button-ghost hidden items-center gap-2 rounded-lg px-3 py-2 text-xs text-[#c8caff] sm:flex"\n        >\n          <ShieldCheck size={14} /> Sign in\n        </button>\n        <button\n          onClick={onUpload}', 1)
+s = s.replace('  const [workspaceMode, setWorkspaceMode] = useState<"personal" | "demo">(\n    "personal"\n  );', '  const [workspaceMode, setWorkspaceMode] = useState<"personal" | "demo">(\n    "demo"\n  );', 1)
+s = s.replace('  const { data: account } = trpc.auth.account.useQuery();', '  const { data: account } = trpc.auth.account.useQuery(undefined, { enabled: Boolean(user) });', 1)
+s = s.replace('  const userName = user?.name?.trim().split(/\\s+/)[0] || "there";', '  const isGuest = !loading && !user;\n  const userName = user?.name?.trim().split(/\\s+/)[0] || "there";', 1)
+needle = '  const { data: selectedContract } = trpc.contracts.get.useQuery(selectedInput);\n  if (!loading && !user) return <AuthScreen loading={false} />;\n  if (loading) return <AuthScreen loading />;'
+replacement = '  const { data: selectedContract } = trpc.contracts.get.useQuery(selectedInput);\n  useEffect(() => {\n    if (user) setWorkspaceMode("personal");\n    else if (!loading) setWorkspaceMode("demo");\n  }, [user, loading]);\n  if (loading) return <AuthScreen loading />;'
+s = s.replace(needle, replacement, 1)
+s = s.replace('    if (view === "chat")\n      return isDemoWorkspace ? (', '    if (view === "chat")\n      return isGuest ? (\n        <div className="glass-panel rounded-2xl p-8 text-sm text-[#858b98]">Sign in with Manus to ask questions about your private contracts.</div>\n      ) : isDemoWorkspace ? (', 1)
+s = s.replace('    if (view === "settings") return <SettingsView />;', '    if (view === "settings") return isGuest ? <div className="glass-panel rounded-2xl p-8 text-sm text-[#858b98]">Sign in with Manus to access workspace settings.</div> : <SettingsView />;', 1)
+s = s.replace('            view={view}\n            onUpload={openUpload}', '            view={view}\n            onUpload={isGuest ? () => startLogin() : openUpload}\n            onLogin={() => startLogin()}', 1)
+s = s.replace('    if (view === "dashboard" && dashboard)', '    if (view === "dashboard" && dashboard)', 1)
+home.write_text(s)

@@ -4,6 +4,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { TRPCError } from "@trpc/server";
 import {
   getAccountContext,
   getDb,
@@ -165,7 +166,7 @@ export const appRouter = router({
       }),
   }),
   dashboard: router({
-    overview: protectedProcedure
+    overview: publicProcedure
       .input(
         z
           .object({ mode: z.enum(["personal", "demo"]).default("personal") })
@@ -173,9 +174,9 @@ export const appRouter = router({
       )
       .query(async ({ ctx, input }) => {
         if (input?.mode === "demo") {
-          await getAccountContext(ctx.user.id);
           return getDashboard();
         }
+        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
         const account = await getAccountContext(ctx.user.id);
         return account?.workspace
           ? getWorkspaceDashboardData(account.workspace.id)
@@ -206,7 +207,7 @@ export const appRouter = router({
     ownedGet: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .query(() => null as Contract | null),
-    list: protectedProcedure
+    list: publicProcedure
       .input(
         z
           .object({
@@ -218,7 +219,6 @@ export const appRouter = router({
       )
       .query(async ({ ctx, input }) => {
         if (input?.mode === "demo") {
-          await getAccountContext(ctx.user.id);
           const search = input.search?.toLowerCase().trim() ?? "";
           const status = input.status ?? "all";
           return demoContracts.filter(
@@ -230,6 +230,7 @@ export const appRouter = router({
               (status === "all" || contract.status === status)
           );
         }
+        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
         const account = await getAccountContext(ctx.user.id);
         return account?.workspace
           ? listWorkspaceContractCards(
@@ -239,7 +240,7 @@ export const appRouter = router({
             )
           : [];
       }),
-    get: protectedProcedure
+    get: publicProcedure
       .input(
         z.object({
           id: z.string(),
@@ -248,9 +249,9 @@ export const appRouter = router({
       )
       .query(async ({ ctx, input }) => {
         if (input.mode === "demo") {
-          await getAccountContext(ctx.user.id);
           return getContract(input.id);
         }
+        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
         const account = await getAccountContext(ctx.user.id);
         const id = Number(input.id);
         return account?.workspace && Number.isInteger(id)
@@ -311,7 +312,7 @@ export const appRouter = router({
       }),
   }),
   obligations: router({
-    list: protectedProcedure
+    list: publicProcedure
       .input(
         z
           .object({ mode: z.enum(["personal", "demo"]).default("personal") })
@@ -319,12 +320,12 @@ export const appRouter = router({
       )
       .query(async ({ ctx, input }) => {
         if (input?.mode === "demo") {
-          await getAccountContext(ctx.user.id);
           return getAllObligations().map(obligation => ({
             ...obligation,
             contractName: getContract(obligation.contractId).name,
           }));
         }
+        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
         const account = await getAccountContext(ctx.user.id);
         return account?.workspace ? [] : [];
       }),
@@ -336,7 +337,7 @@ export const appRouter = router({
     }),
   }),
   alerts: router({
-    list: protectedProcedure
+    list: publicProcedure
       .input(
         z
           .object({ mode: z.enum(["personal", "demo"]).default("personal") })
@@ -344,9 +345,9 @@ export const appRouter = router({
       )
       .query(async ({ ctx, input }) => {
         if (input?.mode === "demo") {
-          await getAccountContext(ctx.user.id);
           return demoAlerts;
         }
+        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
         await getAccountContext(ctx.user.id);
         return [] as Alert[];
       }),

@@ -238,11 +238,13 @@ function Topbar({
   view,
   onUpload,
   onSearch,
+  onLogin,
   onMobileMenu,
 }: {
   view: View;
   onUpload: () => void;
   onSearch: () => void;
+  onLogin: () => void;
   onMobileMenu: () => void;
 }) {
   const titles: Record<View, string> = {
@@ -286,6 +288,12 @@ function Topbar({
           <kbd className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-[#666c77]">
             ⌘ K
           </kbd>
+        </button>
+        <button
+          onClick={onLogin}
+          className="button-ghost hidden items-center gap-2 rounded-lg px-3 py-2 text-xs text-[#c8caff] sm:flex"
+        >
+          <ShieldCheck size={14} /> Sign in
         </button>
         <button
           onClick={onUpload}
@@ -2937,7 +2945,7 @@ function AuthScreen({ loading }: { loading: boolean }) {
           <ShieldCheck size={16} /> Continue with Manus
         </button>
         <p className="mt-5 text-[11px] text-[#626874]">
-          Secure OAuth sign-in. ContractLens never stores your Google password.
+          Secure Manus sign-in. ContractLens never stores your password.
         </p>
       </div>
     </div>
@@ -2951,7 +2959,7 @@ export default function Home() {
       : "dashboard"
   );
   const [workspaceMode, setWorkspaceMode] = useState<"personal" | "demo">(
-    "personal"
+    "demo"
   );
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -2961,7 +2969,10 @@ export default function Home() {
   );
   const [uploadOpen, setUploadOpen] = useState(false);
   const { user, loading } = useAuth();
-  const { data: account } = trpc.auth.account.useQuery();
+  const { data: account } = trpc.auth.account.useQuery(undefined, {
+    enabled: Boolean(user),
+  });
+  const isGuest = !loading && !user;
   const userName = user?.name?.trim().split(/\s+/)[0] || "there";
   const isDemoWorkspace = workspaceMode === "demo";
   const workspaceName = isDemoWorkspace
@@ -2988,7 +2999,13 @@ export default function Home() {
     [selectedContractId, workspaceMode]
   );
   const { data: selectedContract } = trpc.contracts.get.useQuery(selectedInput);
-  if (!loading && !user) return <AuthScreen loading={false} />;
+  useEffect(() => {
+    if (user) {
+      setWorkspaceMode("personal");
+      setView("dashboard");
+      setSelectedContractId(null);
+    } else if (!loading) setWorkspaceMode("demo");
+  }, [user, loading]);
   if (loading) return <AuthScreen loading />;
   const openContract = (id: string) => {
     setSelectedContractId(id);
@@ -2996,6 +3013,10 @@ export default function Home() {
     setMobileMenu(false);
   };
   const openUpload = () => {
+    if (isGuest) {
+      startLogin();
+      return;
+    }
     if (isDemoWorkspace) {
       toast("Demo workspace is read-only. Switch to your workspace to upload.");
       return;
@@ -3022,6 +3043,10 @@ export default function Home() {
           userName={userName}
           workspaceName={workspaceName}
           onToggleWorkspace={() => {
+            if (isGuest) {
+              startLogin();
+              return;
+            }
             setWorkspaceMode(current =>
               current === "personal" ? "demo" : "personal"
             );
@@ -3053,7 +3078,11 @@ export default function Home() {
     if (view === "analytics")
       return <AnalyticsView contracts={contracts} obligations={obligations} />;
     if (view === "chat")
-      return isDemoWorkspace ? (
+      return isGuest ? (
+        <div className="glass-panel rounded-2xl p-8 text-sm text-[#858b98]">
+          Sign in with Manus to ask questions about your private contracts.
+        </div>
+      ) : isDemoWorkspace ? (
         <div className="glass-panel rounded-2xl p-8 text-sm text-[#858b98]">
           AI Chat is connected to your personal workspace. Switch out of Demo
           workspace to search uploaded contracts.
@@ -3065,7 +3094,14 @@ export default function Home() {
           onOpenContract={openContract}
         />
       );
-    if (view === "settings") return <SettingsView />;
+    if (view === "settings")
+      return isGuest ? (
+        <div className="glass-panel rounded-2xl p-8 text-sm text-[#858b98]">
+          Sign in with Manus to access workspace settings.
+        </div>
+      ) : (
+        <SettingsView />
+      );
     return (
       <div className="glass-panel rounded-2xl p-8 text-sm text-[#858b98]">
         Loading workspace…
@@ -3097,7 +3133,8 @@ export default function Home() {
         >
           <Topbar
             view={view}
-            onUpload={openUpload}
+            onUpload={isGuest ? () => startLogin() : openUpload}
+            onLogin={() => startLogin()}
             onSearch={() => {
               setSelectedContractId(null);
               setView("contracts");
