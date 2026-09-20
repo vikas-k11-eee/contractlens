@@ -2665,7 +2665,7 @@ function AuthScreen({ loading }: { loading: boolean }) {
           onClick={() => startLogin()}
           className="button-primary mt-8 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold"
         >
-          <ShieldCheck size={16} /> Continue with Google
+          <ShieldCheck size={16} /> Continue with Manus
         </button>
         <p className="mt-5 text-[11px] text-[#626874]">
           Secure OAuth sign-in. ContractLens never stores your Google password.
