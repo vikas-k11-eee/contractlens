@@ -161,7 +161,7 @@ export const appRouter = router({
       )
       .mutation(({ input }) => ({
         status: "processing" as const,
-        mode: "demo" as const,
+        mode: "workspace" as const,
         fileName: input.fileName,
         message:
           "Upload received. Connect the document processing integration to extract live clauses and evidence.",

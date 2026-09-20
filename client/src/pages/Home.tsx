@@ -298,6 +298,7 @@ function Sidebar({
   setCollapsed,
   onUpload,
   user,
+  workspaceName,
   mobile = false,
 }: {
   view: View;
@@ -306,12 +307,11 @@ function Sidebar({
   setCollapsed: (value: boolean) => void;
   onUpload: () => void;
   user: { name?: string | null; email?: string | null } | null;
+  workspaceName: string;
   mobile?: boolean;
 }) {
   const displayName = user?.name?.trim() || "Guest user";
-  const workspaceLabel = user?.email
-    ? `${user.email.split("@")[1] ?? "personal"} workspace`
-    : "Demo workspace";
+  const workspaceLabel = workspaceName;
   return (
     <aside
       className={`${mobile ? "mobile-drawer-panel !relative !left-auto !top-auto !bottom-auto !z-auto !w-full !max-w-none !border-0" : `desktop-sidebar fixed bottom-0 left-0 top-0 z-30 ${collapsed ? "sidebar-collapsed" : ""}`} flex w-[248px] flex-col border-r border-white/[.07] bg-[#070709]/95 px-3 py-4 backdrop-blur-xl transition-all duration-200 ${collapsed ? "!w-[76px]" : ""}`}
@@ -405,11 +405,13 @@ function DashboardView({
   onOpenContract,
   setView,
   userName,
+  workspaceName,
 }: {
   dashboard: DashboardData;
   onOpenContract: (id: string) => void;
   setView: (view: View) => void;
   userName: string;
+  workspaceName: string;
 }) {
   return (
     <div className="space-y-6">
@@ -430,7 +432,7 @@ function DashboardView({
         </div>
         <div className="pill flex w-fit items-center gap-2 rounded-lg px-3 py-2 text-xs text-[#959aa6]">
           <span className="h-1.5 w-1.5 rounded-full bg-[#7c87f4]" />
-          Demo workspace <ChevronDown size={13} />
+          {workspaceName} <ChevronDown size={13} />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
@@ -1411,7 +1413,7 @@ function QAPanel({
             <div>
               <div className="flex items-center gap-2 text-[11px] text-[#83e6b7]">
                 <ShieldCheck size={13} />
-                Evidence-backed response · demo retrieval mode
+                Evidence-backed response · workspace retrieval
               </div>
               <p className="mt-4 text-[15px] leading-7 text-[#e2e4eb]">
                 {result.answer}
@@ -2244,7 +2246,7 @@ function UploadDialog({ onClose }: { onClose: () => void }) {
       },
       {
         onSuccess: result =>
-          setStatus(`${result.fileName} queued for processing in demo mode.`),
+          setStatus(`${result.fileName} queued for processing.`),
         onError: () => setStatus("Upload failed. Please try again."),
       }
     );
@@ -2317,8 +2319,8 @@ function UploadDialog({ onClose }: { onClose: () => void }) {
         </label>
         <div className="mt-4 flex items-start gap-2 text-[11px] leading-5 text-[#737984]">
           <ShieldCheck size={14} className="mt-0.5 shrink-0 text-[#6bd7a4]" />
-          Demo mode is active: the upload state is real, while document parsing
-          and live AI extraction are isolated behind the integration layer.
+          Upload processing is queued securely for this workspace. Document
+          parsing and live AI extraction will run after processing is connected.
         </div>
         <div className="mt-5 flex items-center justify-between border-t border-white/[.07] pt-4">
           <span
@@ -2608,7 +2610,9 @@ export default function Home() {
   );
   const [uploadOpen, setUploadOpen] = useState(false);
   const { user, loading } = useAuth();
+  const { data: account } = trpc.auth.account.useQuery();
   const userName = user?.name?.trim().split(/\s+/)[0] || "there";
+  const workspaceName = account?.workspace?.name || "Your workspace";
   const listInput = useMemo(() => ({ search, status: "all" }), [search]);
   const { data: dashboard } = trpc.dashboard.overview.useQuery();
   const { data: contracts = [] } = trpc.contracts.list.useQuery(listInput);
@@ -2644,6 +2648,7 @@ export default function Home() {
           onOpenContract={openContract}
           setView={setView}
           userName={userName}
+          workspaceName={workspaceName}
         />
       );
     if (view === "contracts")
@@ -2693,6 +2698,7 @@ export default function Home() {
           setCollapsed={setCollapsed}
           onUpload={() => setUploadOpen(true)}
           user={user}
+          workspaceName={workspaceName}
         />
         <main
           className="workspace-main ml-[248px] min-h-screen transition-all duration-200"
@@ -2726,6 +2732,7 @@ export default function Home() {
                     setMobileMenu(false);
                   }}
                   user={user}
+                  workspaceName={workspaceName}
                   mobile
                 />
               </div>
