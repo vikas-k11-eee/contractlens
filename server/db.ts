@@ -252,7 +252,10 @@ export async function getWorkspaceDashboardData(
   };
 }
 
-function toContractCard(row: typeof contracts.$inferSelect): Contract {
+function toContractCard(
+  row: typeof contracts.$inferSelect,
+  documentName = ""
+): Contract {
   const date = (value: Date | null) => value?.toISOString().slice(0, 10) ?? "";
   return {
     id: String(row.id),
@@ -275,7 +278,7 @@ function toContractCard(row: typeof contracts.$inferSelect): Contract {
     terminationTerms: "",
     governingLaw: "",
     summary: "Contract uploaded and ready for processing.",
-    document: "",
+    document: documentName,
     pageCount: 0,
     clauses: [],
     obligations: [],
@@ -288,21 +291,42 @@ export async function listWorkspaceContractCards(
   search = "",
   status = "all"
 ) {
+  const db = await getDb();
   const rows = await listWorkspaceContracts(workspaceId, search, status);
-  return rows.map(toContractCard);
+  if (!db) return [];
+  const docs = await db
+    .select()
+    .from(documents)
+    .where(eq(documents.workspaceId, workspaceId));
+  const docsByContract = new Map(
+    docs.map(document => [document.contractId, document.fileName])
+  );
+  return rows.map(row => toContractCard(row, docsByContract.get(row.id) ?? ""));
 }
-
 export async function getWorkspaceContractCard(
   workspaceId: number,
   contractId: number
 ) {
+  const db = await getDb();
   const row = await getWorkspaceContract(workspaceId, contractId);
-  return row ? toContractCard(row) : null;
+  if (!db || !row) return null;
+  const docs = await db
+    .select()
+    .from(documents)
+    .where(
+      and(
+        eq(documents.workspaceId, workspaceId),
+        eq(documents.contractId, contractId)
+      )
+    )
+    .limit(1);
+  return toContractCard(row, docs[0]?.fileName ?? "");
 }
 
 export async function createWorkspaceUpload(input: {
   userId: number;
   workspaceId: number;
+  ownerName?: string | null;
   fileName: string;
   mimeType: string;
   fileSize: number;
@@ -332,7 +356,7 @@ export async function createWorkspaceUpload(input: {
       input.mimeType === "application/pdf" ? "PDF contract" : "DOCX contract",
     status: "review",
     riskLevel: "medium",
-    ownerName: undefined,
+    ownerName: input.ownerName ?? undefined,
   });
   const contractId = Number(contractInsert[0].insertId);
   const documentInsert = await db.insert(documents).values({

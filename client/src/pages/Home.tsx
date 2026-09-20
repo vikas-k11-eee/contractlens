@@ -82,16 +82,20 @@ type View =
   | "settings";
 
 const formatDate = (value: string) =>
-  new Date(`${value}T12:00:00`).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  value
+    ? new Date(`${value}T12:00:00`).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "Not set";
 const formatShortDate = (value: string) =>
-  new Date(`${value}T12:00:00`).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
+  value
+    ? new Date(`${value}T12:00:00`).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })
+    : "Not set";
 const daysFromNow = (value: string) =>
   Math.ceil(
     (new Date(`${value}T12:00:00`).getTime() -
@@ -902,8 +906,11 @@ function ContractDetail({
                 <StatusBadge value={contract.risk} kind="risk" />
               </div>
               <p className="mt-2 text-sm text-[#8b909b]">
-                {contract.type} · {contract.document} · {contract.pageCount}{" "}
-                pages
+                {contract.type}
+                {contract.document ? ` · ${contract.document}` : ""}
+                {contract.pageCount > 0
+                  ? ` · ${contract.pageCount} pages`
+                  : " · Processing document details"}
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[#737984]">
                 <span className="flex items-center gap-1">
@@ -916,7 +923,9 @@ function ContractDetail({
                 </span>
                 <span className="flex items-center gap-1">
                   <ShieldCheck size={12} />
-                  Evidence coverage 94%
+                  {contract.document
+                    ? "Source document stored securely"
+                    : "Awaiting source document"}
                 </span>
               </div>
             </div>
@@ -995,6 +1004,37 @@ function ContractDetail({
                 <SourceLink page={7} section="Fees and payment" />
               </div>
             </section>
+            {contract.clauses.length === 0 &&
+              contract.obligations.length === 0 && (
+                <section className="glass-panel rounded-2xl border border-[#7c87f4]/20 bg-[#5e6ad2]/[.06] p-5 sm:p-6">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-xl bg-[#7c87f4]/15 p-2 text-[#aeb5ff]">
+                      <Clock3 size={17} />
+                    </div>
+                    <div>
+                      <h2 className="font-display text-[16px] font-semibold text-[#f0f1f5]">
+                        Contract details are processing
+                      </h2>
+                      <p className="mt-1 text-xs leading-5 text-[#9a9fac]">
+                        Your file is saved in this workspace. Clause extraction,
+                        obligations, dates, and review insights will appear here
+                        when processing completes.
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-[#c6c9ff]">
+                        <span className="rounded-md bg-white/[.07] px-2 py-1">
+                          File saved
+                        </span>
+                        <span className="rounded-md bg-white/[.07] px-2 py-1">
+                          Workspace linked
+                        </span>
+                        <span className="rounded-md bg-white/[.07] px-2 py-1">
+                          Awaiting extraction
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              )}
             <section className="glass-panel rounded-2xl p-5 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -2218,7 +2258,13 @@ function AnalyticsView({
   );
 }
 
-function UploadDialog({ onClose }: { onClose: () => void }) {
+function UploadDialog({
+  onClose,
+  onUploaded,
+}: {
+  onClose: () => void;
+  onUploaded: (contractId: string) => void;
+}) {
   const upload = trpc.contracts.upload.useMutation();
   const utils = trpc.useUtils();
   const [dragging, setDragging] = useState(false);
@@ -2260,6 +2306,7 @@ function UploadDialog({ onClose }: { onClose: () => void }) {
             setStatus(
               `${result.fileName} saved. Contract details are ready to review.`
             );
+            onUploaded(String(result.contractId));
           },
           onError: () => setStatus("Upload failed. Please try again."),
         }
@@ -2759,7 +2806,16 @@ export default function Home() {
           </div>
         </main>
       </div>
-      {uploadOpen && <UploadDialog onClose={() => setUploadOpen(false)} />}
+      {uploadOpen && (
+        <UploadDialog
+          onClose={() => setUploadOpen(false)}
+          onUploaded={contractId => {
+            setUploadOpen(false);
+            setSelectedContractId(contractId);
+            setView("contracts");
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -180,6 +180,7 @@ export const appRouter = router({
         const result = await createWorkspaceUpload({
           userId: ctx.user.id,
           workspaceId: account.workspace.id,
+          ownerName: ctx.user.name,
           ...input,
         });
         return {
