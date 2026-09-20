@@ -24,4 +24,14 @@ describe("protected account surface", () => {
       caller.settings.update({ renewalAlerts: false })
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
+
+  it("rejects dashboard and contract reads without an OAuth session", async () => {
+    const caller = appRouter.createCaller(unauthenticatedContext());
+    await expect(caller.dashboard.overview()).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+    await expect(caller.contracts.list()).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+  });
 });

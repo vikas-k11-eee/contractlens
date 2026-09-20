@@ -11,6 +11,7 @@ import {
   getOrCreateUserSettings,
   getWorkspaceContract,
   getWorkspaceDashboard,
+  getWorkspaceDashboardData,
   listWorkspaceAlerts,
   listWorkspaceContracts,
   listWorkspaceObligations,
@@ -19,13 +20,10 @@ import {
 } from "./db";
 import { workspaces } from "../drizzle/schema";
 import {
-  answerQuestion,
-  compareContracts,
-  demoAlerts,
-  demoContracts,
-  getAllObligations,
-  getContract,
-  getDashboard,
+  getEmptyDashboard,
+  type Alert,
+  type CompareChange,
+  type Contract,
 } from "./contractData";
 
 export const appRouter = router({
@@ -79,7 +77,12 @@ export const appRouter = router({
       .mutation(({ ctx, input }) => updateUserSettings(ctx.user.id, input)),
   }),
   dashboard: router({
-    overview: publicProcedure.query(() => getDashboard()),
+    overview: protectedProcedure.query(async ({ ctx }) => {
+      const account = await getAccountContext(ctx.user.id);
+      return account?.workspace
+        ? getWorkspaceDashboardData(account.workspace.id)
+        : getEmptyDashboard();
+    }),
     owned: protectedProcedure.query(async ({ ctx }) => {
       const account = await getAccountContext(ctx.user.id);
       return account?.workspace
@@ -98,24 +101,14 @@ export const appRouter = router({
           .optional()
       )
       .query(async ({ ctx, input }) => {
-        const account = await getAccountContext(ctx.user.id);
-        return account?.workspace
-          ? listWorkspaceContracts(
-              account.workspace.id,
-              input?.search ?? "",
-              input?.status ?? "all"
-            )
-          : [];
+        await getAccountContext(ctx.user.id);
+        void input;
+        return [] as Contract[];
       }),
     ownedGet: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
-      .query(async ({ ctx, input }) => {
-        const account = await getAccountContext(ctx.user.id);
-        return account?.workspace
-          ? getWorkspaceContract(account.workspace.id, input.id)
-          : undefined;
-      }),
-    list: publicProcedure
+      .query(() => undefined as Contract | undefined),
+    list: protectedProcedure
       .input(
         z
           .object({
@@ -124,83 +117,38 @@ export const appRouter = router({
           })
           .optional()
       )
-      .query(({ input }) => {
-        const search = input?.search?.toLowerCase().trim() ?? "";
-        const status = input?.status ?? "all";
-        return demoContracts.filter(contract => {
-          const matchesSearch =
-            !search ||
-            [
-              contract.name,
-              contract.type,
-              contract.owner,
-              ...contract.parties.map(party => party.name),
-            ]
-              .join(" ")
-              .toLowerCase()
-              .includes(search);
-          const matchesStatus = status === "all" || contract.status === status;
-          return matchesSearch && matchesStatus;
-        });
+      .query(async ({ ctx, input }) => {
+        await getAccountContext(ctx.user.id);
+        void input;
+        return [] as Contract[];
       }),
-    get: publicProcedure
+    get: protectedProcedure
       .input(z.object({ id: z.string() }))
-      .query(({ input }) => getContract(input.id)),
-    obligations: publicProcedure
+      .query(() => undefined as Contract | undefined),
+    obligations: protectedProcedure
       .input(z.object({ id: z.string() }))
-      .query(({ input }) => getContract(input.id).obligations),
-    clauses: publicProcedure
+      .query(() => []),
+    clauses: protectedProcedure
       .input(z.object({ id: z.string() }))
-      .query(({ input }) => getContract(input.id).clauses),
-    timeline: publicProcedure
+      .query(() => []),
+    timeline: protectedProcedure
       .input(z.object({ id: z.string() }))
-      .query(({ input }) => {
-        const contract = getContract(input.id);
-        return [
-          {
-            id: "start",
-            label: "Contract start",
-            date: contract.effectiveDate,
-            status: "completed",
-            type: "milestone",
-          },
-          ...contract.obligations.map(obligation => ({
-            id: obligation.id,
-            label: obligation.obligation,
-            date: obligation.dueDate,
-            status: obligation.status,
-            type: "obligation",
-          })),
-          {
-            id: "renewal",
-            label: "Renewal / expiration",
-            date: contract.expirationDate,
-            status: contract.status === "expiring" ? "due_soon" : "upcoming",
-            type: "milestone",
-          },
-        ];
-      }),
-    summary: publicProcedure
+      .query(() => []),
+    summary: protectedProcedure
       .input(z.object({ id: z.string() }))
-      .query(({ input }) => {
-        const contract = getContract(input.id);
-        return {
-          ...contract,
-          generatedBy: "ContractLens demo extraction layer",
-          disclaimer:
-            "AI-assisted summary. Verify against the source document before acting.",
-        };
-      }),
-    query: publicProcedure
+      .query(() => undefined),
+    query: protectedProcedure
       .input(z.object({ id: z.string(), question: z.string().min(3) }))
-      .mutation(({ input }) => ({
-        ...answerQuestion(input.id, input.question),
-        mode: "demo-evidence" as const,
+      .mutation(() => ({
+        answer:
+          "Upload and process a contract to ask source-grounded questions.",
+        source: { page: 0, section: "No source available", excerpt: "" },
+        mode: "workspace-empty" as const,
       })),
-    compare: publicProcedure
+    compare: protectedProcedure
       .input(z.object({ leftId: z.string(), rightId: z.string() }))
-      .query(({ input }) => compareContracts(input.leftId, input.rightId)),
-    upload: publicProcedure
+      .query(() => [] as CompareChange[]),
+    upload: protectedProcedure
       .input(
         z.object({
           fileName: z.string().min(1),
@@ -220,12 +168,10 @@ export const appRouter = router({
       })),
   }),
   obligations: router({
-    list: publicProcedure.query(() =>
-      getAllObligations().map(obligation => ({
-        ...obligation,
-        contractName: getContract(obligation.contractId).name,
-      }))
-    ),
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const account = await getAccountContext(ctx.user.id);
+      return account?.workspace ? [] : [];
+    }),
     ownedList: protectedProcedure.query(async ({ ctx }) => {
       const account = await getAccountContext(ctx.user.id);
       return account?.workspace
@@ -234,7 +180,10 @@ export const appRouter = router({
     }),
   }),
   alerts: router({
-    list: publicProcedure.query(() => demoAlerts),
+    list: protectedProcedure.query(async ({ ctx }) => {
+      await getAccountContext(ctx.user.id);
+      return [] as Alert[];
+    }),
     ownedList: protectedProcedure.query(async ({ ctx }) => {
       const account = await getAccountContext(ctx.user.id);
       return account?.workspace

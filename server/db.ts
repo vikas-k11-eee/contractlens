@@ -10,6 +10,7 @@ import {
   workspaces,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { getEmptyDashboard, type DashboardData } from "./contractData";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -228,4 +229,22 @@ export async function listWorkspaceAlerts(workspaceId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(alerts).where(eq(alerts.workspaceId, workspaceId));
+}
+
+export async function getWorkspaceDashboardData(
+  workspaceId: number
+): Promise<DashboardData> {
+  const rows = await listWorkspaceContracts(workspaceId);
+  if (rows.length === 0) return getEmptyDashboard();
+  const empty = getEmptyDashboard();
+  return {
+    ...empty,
+    metrics: {
+      ...empty.metrics,
+      totalContracts: rows.length,
+      activeContracts: rows.filter(row => row.status === "active").length,
+      upcomingRenewals: rows.filter(row => row.renewalDate).length,
+      reviewRequired: rows.filter(row => row.status === "review").length,
+    },
+  };
 }

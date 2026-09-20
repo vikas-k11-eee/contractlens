@@ -554,6 +554,22 @@ export function getDashboard() {
   };
 }
 
+export function getEmptyDashboard(): DashboardData {
+  return {
+    metrics: {
+      totalContracts: 0,
+      activeContracts: 0,
+      upcomingRenewals: 0,
+      obligationsDueSoon: 0,
+      reviewRequired: 0,
+      updatedThisWeek: 0,
+    },
+    upcomingObligations: [],
+    renewals: [],
+    alerts: [],
+  };
+}
+
 export function answerQuestion(contractId: string, question: string) {
   const contract = getContract(contractId);
   const normalized = question.toLowerCase();
