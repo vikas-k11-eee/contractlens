@@ -10,9 +10,12 @@ import {
   getOrCreateWorkspace,
   getOrCreateUserSettings,
   getWorkspaceContract,
+  getWorkspaceContractCard,
   getWorkspaceDashboard,
   getWorkspaceDashboardData,
+  createWorkspaceUpload,
   listWorkspaceAlerts,
+  listWorkspaceContractCards,
   listWorkspaceContracts,
   listWorkspaceObligations,
   updateUserProfile,
@@ -118,13 +121,24 @@ export const appRouter = router({
           .optional()
       )
       .query(async ({ ctx, input }) => {
-        await getAccountContext(ctx.user.id);
-        void input;
-        return [] as Contract[];
+        const account = await getAccountContext(ctx.user.id);
+        return account?.workspace
+          ? listWorkspaceContractCards(
+              account.workspace.id,
+              input?.search ?? "",
+              input?.status ?? "all"
+            )
+          : [];
       }),
     get: protectedProcedure
       .input(z.object({ id: z.string() }))
-      .query(() => null as Contract | null),
+      .query(async ({ ctx, input }) => {
+        const account = await getAccountContext(ctx.user.id);
+        const id = Number(input.id);
+        return account?.workspace && Number.isInteger(id)
+          ? getWorkspaceContractCard(account.workspace.id, id)
+          : null;
+      }),
     obligations: protectedProcedure
       .input(z.object({ id: z.string() }))
       .query(() => []),
@@ -157,15 +171,24 @@ export const appRouter = router({
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           ]),
           fileSize: z.number().max(25_000_000),
+          fileData: z.string().max(35_000_000).optional(),
         })
       )
-      .mutation(({ input }) => ({
-        status: "processing" as const,
-        mode: "workspace" as const,
-        fileName: input.fileName,
-        message:
-          "Upload received. Connect the document processing integration to extract live clauses and evidence.",
-      })),
+      .mutation(async ({ ctx, input }) => {
+        const account = await getAccountContext(ctx.user.id);
+        if (!account?.workspace) throw new Error("Workspace is not available");
+        const result = await createWorkspaceUpload({
+          userId: ctx.user.id,
+          workspaceId: account.workspace.id,
+          ...input,
+        });
+        return {
+          status: "processing" as const,
+          mode: "workspace" as const,
+          ...result,
+          message: "Upload saved to your workspace and queued for processing.",
+        };
+      }),
   }),
   obligations: router({
     list: protectedProcedure.query(async ({ ctx }) => {

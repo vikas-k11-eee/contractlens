@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
   contracts,
+  documents,
   alerts,
   obligations,
   userSettings,
@@ -11,6 +12,8 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { getEmptyDashboard, type DashboardData } from "./contractData";
+import type { Contract } from "./contractData";
+import { storagePut } from "./storage";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -246,5 +249,104 @@ export async function getWorkspaceDashboardData(
       upcomingRenewals: rows.filter(row => row.renewalDate).length,
       reviewRequired: rows.filter(row => row.status === "review").length,
     },
+  };
+}
+
+function toContractCard(row: typeof contracts.$inferSelect): Contract {
+  const date = (value: Date | null) => value?.toISOString().slice(0, 10) ?? "";
+  return {
+    id: String(row.id),
+    name: row.name,
+    type: row.contractType,
+    status: row.status,
+    risk: row.riskLevel,
+    parties: row.ownerName
+      ? [{ name: row.ownerName, type: "Owner", role: "Contract owner" }]
+      : [],
+    effectiveDate: date(row.effectiveDate),
+    expirationDate: date(row.expirationDate),
+    renewalDate: date(row.renewalDate),
+    noticeDeadline: "",
+    owner: row.ownerName ?? "",
+    lastUpdated: date(row.updatedAt),
+    amount: "",
+    paymentTerms: "",
+    renewalTerms: "",
+    terminationTerms: "",
+    governingLaw: "",
+    summary: "Contract uploaded and ready for processing.",
+    document: "",
+    pageCount: 0,
+    clauses: [],
+    obligations: [],
+    reviewFlags: [],
+  };
+}
+
+export async function listWorkspaceContractCards(
+  workspaceId: number,
+  search = "",
+  status = "all"
+) {
+  const rows = await listWorkspaceContracts(workspaceId, search, status);
+  return rows.map(toContractCard);
+}
+
+export async function getWorkspaceContractCard(
+  workspaceId: number,
+  contractId: number
+) {
+  const row = await getWorkspaceContract(workspaceId, contractId);
+  return row ? toContractCard(row) : null;
+}
+
+export async function createWorkspaceUpload(input: {
+  userId: number;
+  workspaceId: number;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  fileData?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  let fileKey: string | undefined;
+  if (input.fileData) {
+    const bytes = Buffer.from(
+      input.fileData.replace(/^data:[^;]+;base64,/, ""),
+      "base64"
+    );
+    const safeName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const stored = await storagePut(
+      `contracts/${input.workspaceId}/${Date.now()}-${safeName}`,
+      bytes,
+      input.mimeType
+    );
+    fileKey = stored.key;
+  }
+  const contractInsert = await db.insert(contracts).values({
+    ownerId: input.userId,
+    workspaceId: input.workspaceId,
+    name: input.fileName.replace(/\.[^.]+$/, ""),
+    contractType:
+      input.mimeType === "application/pdf" ? "PDF contract" : "DOCX contract",
+    status: "review",
+    riskLevel: "medium",
+    ownerName: undefined,
+  });
+  const contractId = Number(contractInsert[0].insertId);
+  const documentInsert = await db.insert(documents).values({
+    contractId,
+    workspaceId: input.workspaceId,
+    fileName: input.fileName,
+    mimeType: input.mimeType,
+    fileKey,
+    fileSize: input.fileSize,
+    processingStatus: "processing",
+  });
+  return {
+    contractId,
+    documentId: Number(documentInsert[0].insertId),
+    fileName: input.fileName,
   };
 }

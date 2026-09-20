@@ -2220,6 +2220,7 @@ function AnalyticsView({
 
 function UploadDialog({ onClose }: { onClose: () => void }) {
   const upload = trpc.contracts.upload.useMutation();
+  const utils = trpc.useUtils();
   const [dragging, setDragging] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [status, setStatus] = useState("Ready to upload");
@@ -2235,21 +2236,36 @@ function UploadDialog({ onClose }: { onClose: () => void }) {
       return;
     }
     setFileName(file.name);
-    setStatus("Uploading...");
-    upload.mutate(
-      {
-        fileName: file.name,
-        mimeType: file.type as
-          | "application/pdf"
-          | "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        fileSize: file.size,
-      },
-      {
-        onSuccess: result =>
-          setStatus(`${result.fileName} queued for processing.`),
-        onError: () => setStatus("Upload failed. Please try again."),
-      }
-    );
+    setStatus("Uploading securely...");
+    const reader = new FileReader();
+    reader.onerror = () =>
+      setStatus("Could not read the file. Please try again.");
+    reader.onload = () => {
+      upload.mutate(
+        {
+          fileName: file.name,
+          mimeType: file.type as
+            | "application/pdf"
+            | "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          fileSize: file.size,
+          fileData:
+            typeof reader.result === "string" ? reader.result : undefined,
+        },
+        {
+          onSuccess: async result => {
+            await Promise.all([
+              utils.contracts.list.invalidate(),
+              utils.dashboard.overview.invalidate(),
+            ]);
+            setStatus(
+              `${result.fileName} saved. Contract details are ready to review.`
+            );
+          },
+          onError: () => setStatus("Upload failed. Please try again."),
+        }
+      );
+    };
+    reader.readAsDataURL(file);
   };
   return (
     <div
