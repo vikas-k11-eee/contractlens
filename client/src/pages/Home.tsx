@@ -2293,9 +2293,10 @@ function UploadDialog({
       ![
         "application/pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "text/plain",
       ].includes(file.type)
     ) {
-      setStatus("Unsupported file. Choose a PDF or DOCX.");
+      setStatus("Unsupported file. Choose a PDF, DOCX, or TXT.");
       return;
     }
     setFileName(file.name);
@@ -2309,7 +2310,8 @@ function UploadDialog({
           fileName: file.name,
           mimeType: file.type as
             | "application/pdf"
-            | "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            | "text/plain",
           fileSize: file.size,
           fileData:
             typeof reader.result === "string" ? reader.result : undefined,
@@ -2350,7 +2352,7 @@ function UploadDialog({
               </h2>
             </div>
             <p className="mt-2 text-xs leading-5 text-[#858b98]">
-              Add a PDF or DOCX to begin extraction, evidence linking, and
+              Add a PDF, DOCX, or TXT to begin extraction, evidence linking, and
               obligation tracking.
             </p>
           </div>
@@ -2378,7 +2380,7 @@ function UploadDialog({
           <input
             type="file"
             className="hidden"
-            accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            accept="application/pdf,.docx,.txt,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
             onChange={event => handleFile(event.target.files?.[0])}
           />
           <div className="rounded-full bg-[#5e6ad2]/12 p-3 text-[#abb2ff]">
@@ -2388,7 +2390,7 @@ function UploadDialog({
             Drop your contract here
           </div>
           <div className="mt-1 text-xs text-[#737984]">
-            or click to browse · PDF or DOCX · max 25 MB
+            or click to browse · PDF, DOCX, or TXT · max 25 MB
           </div>
           {fileName && (
             <div className="mt-4 flex items-center gap-2 rounded-lg border border-[#6bd7a4]/15 bg-[#6bd7a4]/[.05] px-3 py-2 text-xs text-[#a7cfb7]">
@@ -2399,8 +2401,8 @@ function UploadDialog({
         </label>
         <div className="mt-4 flex items-start gap-2 text-[11px] leading-5 text-[#737984]">
           <ShieldCheck size={14} className="mt-0.5 shrink-0 text-[#6bd7a4]" />
-          Upload processing is queued securely for this workspace. Document
-          parsing and live AI extraction will run after processing is connected.
+          Files are stored securely in your workspace and text is extracted for
+          grounded AI answers. Scanned-PDF OCR can be added as a later step.
         </div>
         <div className="mt-5 flex items-center justify-between border-t border-white/[.07] pt-4">
           <span

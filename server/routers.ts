@@ -125,10 +125,11 @@ export const appRouter = router({
           ? context
               .map(
                 ({ contract, document }) =>
-                  `Contract: ${contract.name}\nType: ${contract.contractType}\nStatus: ${contract.status}\nOwner: ${contract.ownerName ?? "Not specified"}\nSource file: ${document?.fileName ?? "Not available"}\nNo extracted clause text is available yet.`
+                  `Contract: ${contract.name}\nType: ${contract.contractType}\nStatus: ${contract.status}\nOwner: ${contract.ownerName ?? "Not specified"}\nSource file: ${document?.fileName ?? "Not available"}\nExtracted contract text:\n${document?.extractedText?.slice(0, 120_000) || "No extracted clause text is available yet."}`
               )
               .join("\n\n")
           : "No contracts were found in this workspace.";
+        const previousMessages = (await listChatMessages(session.id)).slice(-8);
         const response = await invokeLLM({
           messages: [
             {
@@ -136,6 +137,10 @@ export const appRouter = router({
               content:
                 "You are ContractLens AI. Answer only from the supplied workspace contract context. Never invent clauses, dates, payments, or legal facts. If the context does not contain the answer, say: I couldn't find this information in your uploaded contracts. Clearly state when document text extraction is still pending.",
             },
+            ...previousMessages.map(message => ({
+              role: message.role,
+              content: message.content,
+            })),
             {
               role: "user",
               content: `Workspace contract context:\n${contextText}\n\nQuestion: ${input.question}`,
@@ -282,6 +287,7 @@ export const appRouter = router({
           mimeType: z.enum([
             "application/pdf",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "text/plain",
           ]),
           fileSize: z.number().max(25_000_000),
           fileData: z.string().max(35_000_000).optional(),

@@ -1,4 +1,7 @@
 import { and, eq } from "drizzle-orm";
+import { promises as fs } from "node:fs";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -16,6 +19,52 @@ import { ENV } from "./_core/env";
 import { getEmptyDashboard, type DashboardData } from "./contractData";
 import type { Contract } from "./contractData";
 import { storagePut } from "./storage";
+
+const execFileAsync = promisify(execFile);
+
+async function extractContractText(
+  bytes: Buffer,
+  mimeType: string,
+  fileName: string
+) {
+  if (mimeType === "text/plain" || fileName.toLowerCase().endsWith(".txt")) {
+    return bytes.toString("utf8").slice(0, 2_000_000);
+  }
+  const tempPath = `/tmp/contractlens-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  await fs.writeFile(tempPath, bytes);
+  try {
+    if (
+      mimeType === "application/pdf" ||
+      fileName.toLowerCase().endsWith(".pdf")
+    ) {
+      const result = await execFileAsync("pdftotext", [
+        "-layout",
+        tempPath,
+        "-",
+      ]);
+      return result.stdout.slice(0, 2_000_000);
+    }
+    if (fileName.toLowerCase().endsWith(".docx")) {
+      const result = await execFileAsync("unzip", [
+        "-p",
+        tempPath,
+        "word/document.xml",
+      ]);
+      return result.stdout
+        .replace(/<w:tab\s*\/>/g, "\t")
+        .replace(/<w:br\s*\/>/g, "\n")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 2_000_000);
+    }
+  } catch (error) {
+    console.warn("[Documents] Text extraction failed:", error);
+  } finally {
+    await fs.rm(tempPath, { force: true });
+  }
+  return "";
+}
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -337,10 +386,16 @@ export async function createWorkspaceUpload(input: {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
   let fileKey: string | undefined;
+  let extractedText = "";
   if (input.fileData) {
     const bytes = Buffer.from(
       input.fileData.replace(/^data:[^;]+;base64,/, ""),
       "base64"
+    );
+    extractedText = await extractContractText(
+      bytes,
+      input.mimeType,
+      input.fileName
     );
     const safeName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
     const stored = await storagePut(
@@ -355,7 +410,11 @@ export async function createWorkspaceUpload(input: {
     workspaceId: input.workspaceId,
     name: input.fileName.replace(/\.[^.]+$/, ""),
     contractType:
-      input.mimeType === "application/pdf" ? "PDF contract" : "DOCX contract",
+      input.mimeType === "application/pdf"
+        ? "PDF contract"
+        : input.mimeType === "text/plain"
+          ? "TXT contract"
+          : "DOCX contract",
     status: "review",
     riskLevel: "medium",
     ownerName: input.ownerName ?? undefined,
@@ -368,7 +427,8 @@ export async function createWorkspaceUpload(input: {
     mimeType: input.mimeType,
     fileKey,
     fileSize: input.fileSize,
-    processingStatus: "processing",
+    extractedText,
+    processingStatus: extractedText ? "completed" : "processing",
   });
   return {
     contractId,

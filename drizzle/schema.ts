@@ -80,6 +80,7 @@ export const documents = mysqlTable("documents", {
   fileKey: varchar("fileKey", { length: 512 }),
   fileSize: int("fileSize"),
   pageCount: int("pageCount"),
+  extractedText: text("extractedText"),
   processingStatus: mysqlEnum("processingStatus", [
     "uploading",
     "processing",
